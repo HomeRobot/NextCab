@@ -9,81 +9,122 @@ app.use(bodyParser.json());
 
 // Подключение к базе данных MySQL
 const dbConfig = {
-  host: 'localhost',
-  user: 'your_mysql_username',
-  password: 'your_mysql_password',
-  database: 'your_database_name',
+    host: 'localhost',
+    user: 'your_mysql_username',
+    password: 'your_mysql_password',
+    database: 'your_database_name',
 };
 
 const db = mysql.createConnection(dbConfig);
 db.connect((err) => {
-  if (err) {
-    console.error('Ошибка подключения к базе данных:', err);
-    return;
-  }
-  console.log('Подключено к базе данных MySQL');
+    if (err) {
+        console.error('Ошибка подключения к базе данных:', err);
+        return;
+    }
+    console.log('Подключено к базе данных MySQL');
 });
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
-  const { username, password } = req.body;
+    const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
-  }
-
-  // Хеширование пароля перед сохранением в базу данных
-  const saltRounds = 10;
-  bcrypt.hash(password, saltRounds, (err, hash) => {
-    if (err) {
-      return res.status(500).json({ error: 'Ошибка хеширования пароля' });
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
     }
 
-    const user = { username, password: hash };
-    db.query('INSERT INTO users SET ?', user, (err, result) => {
-      if (err) {
-        console.error('Ошибка при создании пользователя:', err);
-        return res.status(500).json({ error: 'Ошибка при создании пользователя' });
-      }
+    // Хеширование пароля перед сохранением в базу данных
+    const saltRounds = 10;
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+        if (err) {
+            return res.status(500).json({ error: 'Ошибка хеширования пароля' });
+        }
 
-      return res.status(201).json({ message: 'Пользователь успешно создан' });
+        const user = { username, password: hash };
+        db.query('INSERT INTO users SET ?', user, (err, result) => {
+            if (err) {
+                console.error('Ошибка при создании пользователя:', err);
+                return res.status(500).json({ error: 'Ошибка при создании пользователя' });
+            }
+
+            return res.status(201).json({ message: 'Пользователь успешно создан' });
+        });
     });
-  });
 });
 
 app.post('/login', (req, res) => {
-  const { username, password } = req.body;
+    const { username, password } = req.body;
 
-  if (!username || !password) {
-    return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
-  }
-
-  db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
-    if (err) {
-      console.error('Ошибка при запросе к базе данных:', err);
-      return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
     }
 
-    if (results.length === 0) {
-      return res.status(401).json({ error: 'Пользователь не найден' });
-    }
+    db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
+        if (err) {
+            console.error('Ошибка при запросе к базе данных:', err);
+            return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
+        }
 
-    const user = results[0];
-    bcrypt.compare(password, user.password, (bcryptErr, bcryptResult) => {
-      if (bcryptErr || !bcryptResult) {
-        return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
-      }
+        if (results.length === 0) {
+            return res.status(401).json({ error: 'Пользователь не найден' });
+        }
 
-      // Создание JWT токена
-      const secretKey = 'your_secret_key';
-      const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '1h' });
+        const user = results[0];
+        bcrypt.compare(password, user.password, (bcryptErr, bcryptResult) => {
+            if (bcryptErr || !bcryptResult) {
+                return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
+            }
 
-      return res.status(200).json({ token });
+            // Создание JWT токена
+            const secretKey = 'your_secret_key';
+            const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '1h' });
+
+            return res.status(200).json({ token });
+        });
     });
-  });
+});
+
+app.get('/protected', verifyToken, (req, res) => {
+    // Маршрут доступен только для авторизованных пользователей
+    res.json({ message: 'Это защищенный маршрут. Только авторизованные пользователи могут видеть это.' });
+});
+
+function verifyToken(req, res, next) {
+    const token = req.headers['authorization'];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Токен не предоставлен' });
+    }
+
+    jwt.verify(token, 'your_secret_key', (err, decoded) => {
+        if (err) {
+            return res.status(500).json({ error: 'Ошибка при проверке токена' });
+        }
+
+        // Декодированные данные из токена, содержащие идентификатор пользователя (userId)
+        req.userId = decoded.userId;
+        next();
+    });
+}
+
+app.get('/me', verifyToken, (req, res) => {
+    const userId = req.userId;
+
+    db.query('SELECT id, username FROM users WHERE id = ?', [userId], (err, results) => {
+        if (err) {
+            console.error('Ошибка при запросе к базе данных:', err);
+            return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
+
+        const user = results[0];
+        return res.json(user);
+    });
 });
 
 const port = 3000;
 app.listen(port, () => {
-  console.log(`Сервер запущен на порту ${port}`);
+    console.log(`Сервер запущен на порту ${port}`);
 });
