@@ -14,7 +14,7 @@ const dbConfig = {
     password: 'your_mysql_password',
     database: 'your_database_name',
 };
-
+const secretKey = 'your_secret_key';
 const db = mysql.createConnection(dbConfig);
 db.connect((err) => {
     if (err) {
@@ -75,7 +75,7 @@ app.post('/login', (req, res) => {
             }
 
             // Создание JWT токена
-            const secretKey = 'your_secret_key';
+            
             const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '1h' });
 
             return res.status(200).json({ token });
@@ -95,7 +95,7 @@ function verifyToken(req, res, next) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
-    jwt.verify(token, 'your_secret_key', (err, decoded) => {
+    jwt.verify(token, secretKey, (err, decoded) => {
         if (err) {
             return res.status(500).json({ error: 'Ошибка при проверке токена' });
         }
