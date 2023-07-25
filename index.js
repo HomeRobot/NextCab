@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -6,13 +7,15 @@ const mysql = require('mysql');
 
 const app = express();
 app.use(bodyParser.json());
+// Включение CORS для всех маршрутов
+app.use(cors());
 
 // Подключение к базе данных MySQL
 const dbConfig = {
     host: 'localhost',
-    user: 'your_mysql_username',
-    password: 'your_mysql_password',
-    database: 'your_database_name',
+    user: 'root',
+    password: '',
+    database: 'nextCab',
 };
 const secretKey = 'your_secret_key';
 const db = mysql.createConnection(dbConfig);
@@ -26,7 +29,9 @@ db.connect((err) => {
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
+    console.log('Поступил запрос на регистрацию: ', req.body);
     const { username, password } = req.body;
+
 
     if (!username || !password) {
         return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
@@ -52,6 +57,7 @@ app.post('/register', (req, res) => {
 });
 
 app.post('/login', (req, res) => {
+    console.log('Поступил запрос на авторизацию: ', req.body);
     const { username, password } = req.body;
 
     if (!username || !password) {
@@ -78,7 +84,9 @@ app.post('/login', (req, res) => {
             
             const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '1h' });
 
-            return res.status(200).json({ token });
+    console.log('Токен: ' +  token );
+            return res.status(200).json({ "token": token });
+            
         });
     });
 });
@@ -124,7 +132,7 @@ app.get('/me', verifyToken, (req, res) => {
     });
 });
 
-const port = 3000;
+const port = 3003;
 app.listen(port, () => {
-    console.log(`Сервер запущен на порту ${port}`);
+    console.log(`Сервер запущен на порте ${port}`);
 });
