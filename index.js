@@ -1,9 +1,10 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const mysql = require('mysql');
+const express = require('express')
+const cors = require('cors')
+const bodyParser = require('body-parser')
+const bcrypt = require('bcrypt')
+const jwt = require('jsonwebtoken')
+const mysql = require('mysql')
+const config = require('config')
 
 const app = express();
 app.use(bodyParser.json());
@@ -12,12 +13,11 @@ app.use(cors());
 
 // Подключение к базе данных MySQL
 const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'nextCab',
-};
-const secretKey = 'your_secret_key';
+    host: config.DB_HOST,
+    user: config.DB_USERNAME,
+    password: config.DB_PASSWORD,
+    database: config.DB_DATABASE,
+}
 const db = mysql.createConnection(dbConfig);
 db.connect((err) => {
     if (err) {
@@ -82,7 +82,7 @@ app.post('/login', (req, res) => {
 
             // Создание JWT токена
             
-            const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '1h' });
+            const token = jwt.sign({ userId: user.id }, config.secretKey, { expiresIn: '1h' });
 
     console.log('Токен: ' +  token );
             return res.status(200).json({ "token": token });
@@ -103,7 +103,7 @@ function verifyToken(req, res, next) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
-    jwt.verify(token, secretKey, (err, decoded) => {
+    jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
             return res.status(500).json({ error: 'Ошибка при проверке токена' });
         }
