@@ -4,7 +4,7 @@ const bodyParser = require('body-parser')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const mysql = require('mysql')
-const config = require('config')
+const config = require('./config')
 
 const app = express();
 app.use(bodyParser.json());
@@ -18,14 +18,12 @@ const dbConfig = {
     password: config.DB_PASSWORD,
     database: config.DB_DATABASE,
 }
-const db = mysql.createConnection(dbConfig);
-db.connect((err) => {
-    if (err) {
-        console.error('Ошибка подключения к базе данных:', err);
-        return;
-    }
-    console.log('Подключено к базе данных MySQL');
-});
+const db = mysql.createPool({
+    user: config.DB_USERNAME,
+    database: config.DB_DATABASE,
+    host: config.DB_HOST,
+    password: config.DB_PASSWORD
+})
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
@@ -81,12 +79,11 @@ app.post('/login', (req, res) => {
             }
 
             // Создание JWT токена
-            
             const token = jwt.sign({ userId: user.id }, config.secretKey, { expiresIn: '1h' });
 
-    console.log('Токен: ' +  token );
+            console.log('Токен: ' + token);
             return res.status(200).json({ "token": token });
-            
+
         });
     });
 });
