@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken')
 const mysql = require('mysql')
 const config = require('./config')
 const RBAC = require('./roles')
+const core = require('./core')
 
 const app = express();
 app.use(bodyParser.json());
@@ -125,6 +126,29 @@ function verifyToken(req, res, next) {
         next();
     });
 }
+
+app.get('/users', verifyToken, (req, res) => {
+    const userId = req.userId
+    if(core.canUserAction(userId, 'getList', 'users')){
+        const users = core.getUserList()
+        return res.status(200).json(JSON.stringify(users))
+    }
+    else{
+        return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+})
+
+app.get('/user', verifyToken, (req, res) => {
+    const userId = req.userId
+    if(core.canUserAction(userId, 'read', 'users')){
+        const user = core.getUser(userId)
+        return res.status(200).json(JSON.stringify(user))
+    }
+    else{
+        return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+})
+
 
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;

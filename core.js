@@ -32,8 +32,20 @@ async function canUserAction(userId, action, resource) {
     }
 }
 
+async function getUserList(){
+    const [users] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users')
+    return users
+}
+
+async function getUser(userId){
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users where id = ?', [userId])
+    return user
+}
+
 module.exports = {
     getUserRole,
     getUserPermissions,
-    canUserAction
+    canUserAction,
+    getUserList,
+    getUser
 }
