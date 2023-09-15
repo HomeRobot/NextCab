@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const mysql = require('mysql')
 const config = require('./config')
+const RBAC = require('./roles')
 
 const app = express();
 app.use(bodyParser.json());
@@ -12,12 +13,6 @@ app.use(bodyParser.json());
 app.use(cors());
 
 // Подключение к базе данных MySQL
-const dbConfig = {
-    host: config.DB_HOST,
-    user: config.DB_USERNAME,
-    password: config.DB_PASSWORD,
-    database: config.DB_DATABASE,
-}
 const db = mysql.createPool({
     user: config.DB_USERNAME,
     database: config.DB_DATABASE,
@@ -79,7 +74,7 @@ app.post('/login', (req, res) => {
             }
 
             // Создание JWT токена
-            const token = jwt.sign({ userId: user.id }, config.secretKey, { expiresIn: '1h' });
+            const token = jwt.sign({ userId: user.id, role: user.role }, config.secretKey, { expiresIn: '1h' });
 
             console.log('Токен: ' + token);
             return res.status(200).json({ "token": token });
@@ -105,6 +100,11 @@ function verifyToken(req, res, next) {
             return res.status(500).json({ error: 'Ошибка при проверке токена' });
         }
 
+        const currentTime = Math.floor(Date.now() / 1000); // Текущее время в секундах
+        if (decoded.exp < currentTime) {
+            return res.status(401).json({ error: 'Токен истек' });
+        } 
+
         // Декодированные данные из токена, содержащие идентификатор пользователя (userId)
         req.userId = decoded.userId;
         next();
@@ -128,6 +128,10 @@ app.get('/me', verifyToken, (req, res) => {
         return res.json(user);
     });
 });
+
+app.get('/getPermissions', verifyToken, (req, res) => {
+    return res.json(RBAC.roles)
+})
 
 const port = 3003;
 app.listen(port, () => {
