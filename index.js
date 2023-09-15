@@ -72,13 +72,28 @@ app.post('/login', (req, res) => {
             if (bcryptErr || !bcryptResult) {
                 return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
             }
+            const userRole = user.role,
+                userPermissions = RBAC.roles[userRole];
 
             // Создание JWT токена
-            const token = jwt.sign({ userId: user.id, role: user.role }, config.secretKey, { expiresIn: '1h' });
+            const token = jwt.sign({
+                userId: user.id,
+                role: user.role
+            }, config.secretKey, { expiresIn: '1h' });
 
-            console.log('Токен: ' + token);
-            return res.status(200).json({ "token": token });
+            /* console.log('Токен: ' + token);
+            console.log('user role: ' + userRole);
+            console.log('permissons: ' + userPermissions); */
 
+            return res.status(200).json({
+                "token": token,
+                "permissions": userPermissions,
+                "userdata": {
+                    "id": user.id,
+                    "username": user.username,
+                    "role": userRole
+                }
+            });
         });
     });
 });
@@ -103,7 +118,7 @@ function verifyToken(req, res, next) {
         const currentTime = Math.floor(Date.now() / 1000); // Текущее время в секундах
         if (decoded.exp < currentTime) {
             return res.status(401).json({ error: 'Токен истек' });
-        } 
+        }
 
         // Декодированные данные из токена, содержащие идентификатор пользователя (userId)
         req.userId = decoded.userId;
@@ -114,7 +129,7 @@ function verifyToken(req, res, next) {
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;
 
-    db.query('SELECT id, username FROM users WHERE id = ?', [userId], (err, results) => {
+    db.query('SELECT id, username, firstName, lastName, avatar, email, telegram, lastVisit, registrationDate, role FROM users WHERE id = ?', [userId], (err, results) => {
         if (err) {
             console.error('Ошибка при запросе к базе данных:', err);
             return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
