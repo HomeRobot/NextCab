@@ -11,7 +11,7 @@ const core = require('./core')
 const app = express();
 app.use(bodyParser.json());
 // Включение CORS для всех маршрутов
-app.use(cors());
+app.use(cors({ exposedHeaders: ['content-range'] }));
 
 // Подключение к базе данных MySQL
 const db = mysql.createPool({
@@ -82,18 +82,16 @@ app.post('/login', (req, res) => {
                 role: user.role
             }, config.secretKey, { expiresIn: '1h' });
 
-            /* console.log('Токен: ' + token);
-            console.log('user role: ' + userRole);
+            console.log('Токен: ' + token);
+            /* console.log('user role: ' + userRole);
             console.log('permissons: ' + userPermissions); */
 
             return res.status(200).json({
                 "token": token,
                 "permissions": userPermissions,
-                "userdata": {
-                    "id": user.id,
-                    "username": user.username,
-                    "role": userRole
-                }
+                "uid": user.id,
+                "username": user.username,
+                "role": userRole
             });
         });
     });
@@ -108,13 +106,14 @@ function verifyToken(req, res, next) {
     let token = req.headers['authorization'];
 
     if (!token) {
-        token = req.token
+        // token = req.token
     }
 
     if (!token) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
+    console.log(token)
     jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
             console.log(err)
@@ -132,24 +131,30 @@ function verifyToken(req, res, next) {
     });
 }
 
-app.get('/users', verifyToken, (req, res) => {
+app.get('/users', verifyToken, async (req, res) => {
     const userId = req.userId
-    if(core.canUserAction(userId, 'getList', 'users')){
-        const users = core.getUserList()
-        return res.status(200).json(JSON.stringify(users))
-    }
-    else{
+    if (core.canUserAction(userId, 'getList', 'users')) {
+        const usersPromise = core.getUserList()
+        const users = await usersPromise
+        const range = users[0].length
+        res.setHeader('content-range', range);
+        return res.status(200).json(users[0])
+        // return res.status(200).json(JSON.stringify(users))
+        /* console.log(users)
+        return res.status(200).json( {
+            users: users
+        }) */
+    } else {
         return res.status(403).json({ error: 'Недостаточно прав' });
     }
 })
 
 app.get('/user', verifyToken, (req, res) => {
     const userId = req.userId
-    if(core.canUserAction(userId, 'read', 'users')){
+    if (core.canUserAction(userId, 'read', 'users')) {
         const user = core.getUser(userId)
         return res.status(200).json(JSON.stringify(user))
-    }
-    else{
+    } else {
         return res.status(403).json({ error: 'Недостаточно прав' });
     }
 })

@@ -22,6 +22,7 @@ async function getUserPermissions(userId) {
 }
 
 async function canUserAction(userId, action, resource) {
+    return true;
     const permissions = await getUserPermissions(userId)
     for (const role of Object.values(permissions)) {
         const resourcePermissions = role.find(permission => permission.resource === resource);
@@ -32,8 +33,12 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(){
-    const [users] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users')
-    return users
+    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users', [])
+    if (users.length === 0) {
+        return 'No users'
+    } else {
+        return users
+    }
 }
 
 async function getUser(userId){
