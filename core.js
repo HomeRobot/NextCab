@@ -35,9 +35,9 @@ async function canUserAction(userId, action, resource) {
 async function getUserList(){
     const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users', [])
     if (users.length === 0) {
-        return 'No users'
+        return []
     } else {
-        return users
+        return users[0]
     }
 }
 

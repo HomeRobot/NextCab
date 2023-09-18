@@ -136,9 +136,9 @@ app.get('/users', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'getList', 'users')) {
         const usersPromise = core.getUserList()
         const users = await usersPromise
-        const range = users[0].length
+        const range = users.length
         res.setHeader('content-range', range);
-        return res.status(200).json(users[0])
+        return res.status(200).json(users)
         // return res.status(200).json(JSON.stringify(users))
         /* console.log(users)
         return res.status(200).json( {
