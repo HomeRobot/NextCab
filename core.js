@@ -12,7 +12,6 @@ const db = mysql.createPool({
 const dbp = db.promise()
 
 async function getUserRole(userId) {
-    const userId = req.userId;
     const [results] = await dbp.query('SELECT role FROM users WHERE id = ?', [userId])
     return results[0].role
 }

@@ -105,7 +105,11 @@ app.get('/protected', verifyToken, (req, res) => {
 });
 
 function verifyToken(req, res, next) {
-    const token = req.headers['authorization'];
+    let token = req.headers['authorization'];
+
+    if (!token) {
+        token = req.token
+    }
 
     if (!token) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
@@ -113,6 +117,7 @@ function verifyToken(req, res, next) {
 
     jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
+            console.log(err)
             return res.status(500).json({ error: 'Ошибка при проверке токена' });
         }
 
