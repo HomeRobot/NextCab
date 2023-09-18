@@ -1,5 +1,5 @@
 
-const mysql = require('mysql')
+const mysql = require('mysql2')
 const config = require('./config')
 const RBAC = require('./roles')
 
