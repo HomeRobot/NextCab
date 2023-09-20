@@ -22,14 +22,13 @@ async function getUserPermissions(userId) {
 }
 
 async function canUserAction(userId, action, resource) {
-    return true;
     const permissions = await getUserPermissions(userId)
-    for (const role of Object.values(permissions)) {
-        const resourcePermissions = role.find(permission => permission.resource === resource);
-        if (resourcePermissions && resourcePermissions.action.includes(action)) {
-            return true;
+    for(let act of permissions){
+        if(act.includes(action) && act.resource == resource){
+            return true        
         }
     }
+    return false
 }
 
 async function getUserList(){
