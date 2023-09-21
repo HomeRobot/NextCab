@@ -24,7 +24,7 @@ const db = mysql.createPool({
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
     console.log('Поступил запрос на регистрацию: ', req.body);
-    const { username, password } = req.body;
+    const { username, password, email } = req.body;
 
 
     if (!username || !password) {
@@ -38,14 +38,16 @@ app.post('/register', (req, res) => {
             return res.status(500).json({ error: 'Ошибка хеширования пароля' });
         }
 
-        const user = { username, password: hash };
+        const user = { username, password: hash, email, role: 'client'};
         db.query('INSERT INTO users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
                 return res.status(500).json({ error: 'Ошибка при создании пользователя' });
             }
-
-            return res.status(201).json({ message: 'Пользователь успешно создан' });
+            return res.status(201).json({
+                id: result.insertId,
+                message: 'User created successfully'
+            });
         });
     });
 });
