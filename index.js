@@ -38,7 +38,7 @@ app.post('/register', (req, res) => {
             return res.status(500).json({ error: 'Ошибка хеширования пароля' });
         }
 
-        const user = { username, password: hash, email, role: 'client'};
+        const user = { username, password: hash, email, role: 'client' };
         db.query('INSERT INTO users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
@@ -115,7 +115,7 @@ function verifyToken(req, res, next) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
-    console.log(token)
+    console.log('Проверка токена (функция verifyToken): ' + token)
     jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
             console.log(err)
@@ -134,21 +134,59 @@ function verifyToken(req, res, next) {
 }
 
 app.get('/users', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /users с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const usersPromise = core.getUserList()
-        const users = await usersPromise
-        const range = users.length
+        const users = await core.getUserList(),
+            range = users.length
         res.setHeader('content-range', range);
         return res.status(200).json(users)
-        // return res.status(200).json(JSON.stringify(users))
-        /* console.log(users)
-        return res.status(200).json( {
-            users: users
-        }) */
     } else {
-        return res.status(403).json({ error: 'Недостаточно прав' });
+        return res.status(403).json({ error: 'No permissions' });
     }
+})
+
+app.get('/users/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод /users');
+    console.log('Запрос /users/:id с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'users')) {
+        const user = await core.getUser(id)
+        // res.setHeader('content-range', 1);
+        console.log(user)
+        console.log(user[0].id)
+        return res.status(200).json(
+            {
+                'id': user[0].id,
+                'data': user
+            }
+        )
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.put('/users/:id', verifyToken, async (req, res) => {
+    console.log('Вызван PUT-метод /users');
+    console.log('Запрос /users/:id с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    /* if (core.canUserAction(userId, 'getList', 'users')) {
+        const user = await core.getUser(id)
+        // res.setHeader('content-range', 1);
+        console.log(user)
+        console.log(user[0].id)
+        return res.status(200).json(
+            {
+                'id': user[0].id,
+                'data': user
+            }
+        )
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    } */
 })
 
 app.get('/user', verifyToken, (req, res) => {
@@ -157,7 +195,7 @@ app.get('/user', verifyToken, (req, res) => {
         const user = core.getUser(userId)
         return res.status(200).json(JSON.stringify(user))
     } else {
-        return res.status(403).json({ error: 'Недостаточно прав' });
+        return res.status(403).json({ error: 'No permissions' });
     }
 })
 
@@ -183,6 +221,24 @@ app.get('/me', verifyToken, (req, res) => {
 app.get('/getPermissions', verifyToken, (req, res) => {
     return res.json(RBAC.roles)
 })
+
+app.delete('/users/:id', verifyToken, (req, res) => {
+    const id = req.params.id;
+    console.log('Поступил запрос на удаление пользователя: ', req.params);
+
+    if (!id) {
+        return res.status(400).json({ error: 'Please provide an id' });
+    }
+
+    const query = `DELETE FROM users WHERE id = ?`;
+    db.query(query, [id], (err, result) => {
+        if (err) {
+            console.error('Ошибка при удалении элемента:', err);
+            return res.status(500).json({ error: 'Error while deleting user' });
+        }
+        return res.status(200).json({ message: 'User deleted successfully' });
+    });
+});
 
 const port = 3003;
 app.listen(port, () => {
