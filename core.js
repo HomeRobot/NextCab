@@ -46,10 +46,119 @@ async function getUser(userId){
     return user
 }
 
+async function getOfficeList(){
+    const rows = await dbp.query('SELECT * FROM office', [])
+    if (rows.length === 0) {
+        return []
+    } else {
+        return rows[0]
+    }
+}
+
+async function getOffice(officeId){
+    const [row] = await dbp.query('SELECT * FROM office where id = ?', [officeId])
+    return row
+}
+
+async function addUserOffice(userId, officeId, role){
+    const res = await dbp.query('INSERT INTO user_office (user_id, office_id, role) VALUES (?, ?, ?)', [userId, officeId, role])
+    return res.insertId
+}
+
+async function getExchangeList(){
+    const rows = await dbp.query('SELECT * FROM exchange', [])
+    if (rows.length === 0) {
+        return []
+    } else {
+        return rows[0]
+    }
+}
+
+async function getExchange(exchangeId){
+    const [row] = await dbp.query('SELECT * FROM exchange where id = ?', [exchangeId])
+    return row
+}
+
+async function addExchange(title){
+    const res = await dbp.query('INSERT INTO exchange (title) VALUES (?)', [title])
+    return res.insertId
+}
+
+async function editExchange(id, title = '', state = ''){
+    if(title == '' && state == ''){
+        return false
+    }
+    if(title == ''){
+        await dbp.query('UPDATE exchange SET state = ? WHERE id = ?', [state, id])
+        return true
+    }
+    if(state == ''){
+        await dbp.query('UPDATE exchange SET title = ? WHERE id = ?', [title, id])
+        return true
+    }
+    await dbp.query('UPDATE exchange SET title = ?, state = ? WHERE id = ?', [title, state, id])
+    return true
+}
+
+async function getBotList(officeId = ''){
+    if(officeId != ''){
+        const rows = await dbp.query('SELECT * FROM bot where office_id = ?', [officeId])
+        if (rows.length === 0) {
+            return []
+        } else {
+            return rows[0]
+        }
+    }
+    const rows = await dbp.query('SELECT * FROM bot', [])
+    if (rows.length === 0) {
+        return []
+    } else {
+        return rows[0]
+    }
+}
+
+async function getBot(botId){
+    const [row] = await dbp.query('SELECT * FROM bot where id = ?', [botId])
+    row.secretKey = ''
+    return row
+}
+
+async function addBot(botData){
+    const res = await dbp.query('INSERT INTO bot SET ?', botData)
+    return res.insertId
+}
+
+async function stopBot(botId){
+    await dbp.query('UPDATE bot SET status = 0 WHERE id = ?', [botId])
+}
+
+async function startBot(botId){
+    await dbp.query('UPDATE bot SET status = 1, pause_until = null WHERE id = ?', [botId])
+}
+
+async function pauseBot(botId, pauseUntil = null){
+    await dbp.query('UPDATE bot SET status = 2, pause_until = ? WHERE id = ?', [botId, pauseUntil])
+}
+
+
+
 module.exports = {
     getUserRole,
     getUserPermissions,
     canUserAction,
     getUserList,
-    getUser
+    getUser,
+    getOfficeList,
+    getOffice,
+    addUserOffice,
+    getExchangeList,
+    getExchange,
+    addExchange,
+    editExchange,
+    getBotList,
+    getBot,
+    addBot,
+    stopBot,
+    startBot,
+    pauseBot
 }
