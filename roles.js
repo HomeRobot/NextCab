@@ -5,6 +5,7 @@ const roles = {
         { 'action': ['read', 'update', 'changeState', 'delete', 'create', 'getList'], 'resource': 'bots' },
         { 'action': ['read', 'update', 'changeState', 'delete', 'create', 'getList'], 'resource': 'pairs' },
         { 'action': ['read', 'update', 'changeState', 'delete', 'create', 'getList'], 'resource': 'offices' },
+        { 'action': ['read', 'update', 'changeState', 'delete', 'create', 'getList'], 'resource': 'exchanges' },
     ],
     'manager': [
         { 'action': ['read', 'update', 'changeState', 'delete', 'create', 'getList'], 'resource': 'clients' },
