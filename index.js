@@ -155,14 +155,10 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'getList', 'users')) {
         const user = await core.getUser(id)
         // res.setHeader('content-range', 1);
-        console.log(user)
-        console.log(user[0].id)
-        return res.status(200).json(
-            {
-                'id': user[0].id,
-                'data': user
-            }
-        )
+        return res.status(200).json({
+            'id': user[0].id,
+            'data': user
+        })
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -170,23 +166,21 @@ app.get('/users/:id', verifyToken, async (req, res) => {
 
 app.put('/users/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /users');
-    console.log('Запрос /users/:id с параметрами: ', req.params);
+    console.log('Запрос /users/:id с параметрами: ', req.body);
     const id = req.params.id,
-        userId = req.userId
-    /* if (core.canUserAction(userId, 'getList', 'users')) {
-        const user = await core.getUser(id)
-        // res.setHeader('content-range', 1);
-        console.log(user)
-        console.log(user[0].id)
-        return res.status(200).json(
-            {
-                'id': user[0].id,
-                'data': user
-            }
-        )
+        userId = req.userId,
+        dataNew = req.body
+
+    if (core.canUserAction(userId, 'getList', 'users')) {
+        const user = await core.updateUser(id, dataNew)
+        return res.status(200).json({
+            'id': userId,
+            'procedure': 'updated',
+            'status': 'updated'
+        })
     } else {
         return res.status(403).json({ error: 'No permissions' });
-    } */
+    }
 })
 
 app.get('/user', verifyToken, (req, res) => {

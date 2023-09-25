@@ -46,6 +46,11 @@ async function getUser(userId){
     return user
 }
 
+async function updateUser(userId, data){
+    const [user] = await dbp.query('UPDATE users SET ? WHERE id = ?', [data, userId])
+    return user
+}
+
 async function getOfficeList(){
     const rows = await dbp.query('SELECT * FROM office', [])
     if (rows.length === 0) {
@@ -148,6 +153,7 @@ module.exports = {
     canUserAction,
     getUserList,
     getUser,
+    updateUser,
     getOfficeList,
     getOffice,
     addUserOffice,
