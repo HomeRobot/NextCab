@@ -99,6 +99,15 @@ app.post('/login', (req, res) => {
     });
 });
 
+app.post('/logout', verifyToken, (req, res) => {
+    console.log('Поступил запрос на выход: ', req.body);
+    const { username, userId } = req.body;
+    return res.status(200).json({
+        'action': 'logout',
+        'status': 'ok'
+    })
+})
+
 app.get('/protected', verifyToken, (req, res) => {
     // Маршрут доступен только для авторизованных пользователей
     res.json({ message: 'Это защищенный маршрут. Только авторизованные пользователи могут видеть это.' });
@@ -233,6 +242,21 @@ app.delete('/users/:id', verifyToken, (req, res) => {
         return res.status(200).json({ message: 'User deleted successfully' });
     });
 });
+
+
+app.get('/offices', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /users с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'office')) {
+        const offices = await core.getOfficesList(),
+            range = offices.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(offices)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 const port = 3003;
 app.listen(port, () => {

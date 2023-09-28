@@ -41,6 +41,15 @@ async function getUserList(){
     }
 }
 
+async function getOfficesList(){
+    const offices = await dbp.query('SELECT id, title, address, phone FROM office', [])
+    if (offices.length === 0) {
+        return []
+    } else {
+        return offices[0]
+    }
+}
+
 async function getUser(userId){
     const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users where id = ?', [userId])
     return user
@@ -152,6 +161,7 @@ module.exports = {
     getUserPermissions,
     canUserAction,
     getUserList,
+    getOfficesList,
     getUser,
     updateUser,
     getOfficeList,
