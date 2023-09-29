@@ -28,21 +28,21 @@ app.post('/register', (req, res) => {
 
 
     if (!username || !password) {
-        return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
+        return res.status(400).json({ error: 'Please, fill all fields' });
     }
 
     // Хеширование пароля перед сохранением в базу данных
     const saltRounds = 10;
     bcrypt.hash(password, saltRounds, (err, hash) => {
         if (err) {
-            return res.status(500).json({ error: 'Ошибка хеширования пароля' });
+            return res.status(500).json({ error: 'Password hash error' });
         }
 
         const user = { username, password: hash, email, role: 'client' };
         db.query('INSERT INTO users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
-                return res.status(500).json({ error: 'Ошибка при создании пользователя' });
+                return res.status(500).json({ error: 'Error while creating user' });
             }
             return res.status(201).json({
                 id: result.insertId,
@@ -85,8 +85,6 @@ app.post('/login', (req, res) => {
             }, config.secretKey, { expiresIn: '1h' });
 
             console.log('Токен: ' + token);
-            /* console.log('user role: ' + userRole);
-            console.log('permissons: ' + userPermissions); */
 
             return res.status(200).json({
                 "token": token,
@@ -99,7 +97,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-app.post('/logout', verifyToken, (req, res) => {
+app.post('/logout', (req, res) => {
     console.log('Поступил запрос на выход: ', req.body);
     const { username, userId } = req.body;
     return res.status(200).json({
@@ -202,6 +200,34 @@ app.get('/user', verifyToken, (req, res) => {
     }
 })
 
+app.get('/exchanges', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /users с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'exchange')) {
+        const users = await core.getExchangeList(),
+            range = users.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(users)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+
+app.get('/bots', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /users с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'bot')) {
+        const users = await core.getBotList(),
+            range = users.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(users)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;
@@ -257,6 +283,28 @@ app.get('/offices', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+
+
+app.post('/createoffice', verifyToken, async (req, res) => {
+    console.log('Поступил запрос на создание офиса: ', req.body);
+    const { title, address, phone, state } = req.body;
+
+    if (!title || !address || !phone || !state) {
+        return res.status(400).json({ error: 'Please provide all required fields' });
+    }
+
+    const office = { title, address, phone, state };
+    db.query('INSERT INTO office SET ?', office, (err, result) => {
+        if (err) {
+            console.error('Ошибка при создании офиса:', err);
+            return res.status(500).json({ error: 'Error while creating office' });
+        }
+        return res.status(201).json({
+            id: result.insertId,
+            message: 'Office created successfully'
+        });
+    });
+});
 
 const port = 3003;
 app.listen(port, () => {
