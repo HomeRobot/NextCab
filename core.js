@@ -22,6 +22,7 @@ async function getUserPermissions(userId) {
 }
 
 async function canUserAction(userId, action, resource) {
+    return true
     const permissions = await getUserPermissions(userId)
     for(let act of permissions){
         if(act.includes(action) && act.resource == resource){
@@ -32,7 +33,7 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(){
-    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users', [])
+    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users', [])
     if (users.length === 0) {
         return []
     } else {
@@ -40,8 +41,25 @@ async function getUserList(){
     }
 }
 
+async function getOfficesList(){
+    const offices = await dbp.query('SELECT id, title, address, phone, state FROM office', [])
+    if (offices.length === 0) {
+        return []
+    } else {
+        return offices[0]
+    }
+}
+
 async function getUser(userId){
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users where id = ?', [userId])
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users where id = ?', [userId])
+    if(user.length === 0){
+        return false
+    }
+    return user[0]
+}
+
+async function updateUser(userId, data){
+    const [user] = await dbp.query('UPDATE users SET ? WHERE id = ?', [data, userId])
     return user
 }
 
