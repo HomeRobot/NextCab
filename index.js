@@ -7,6 +7,7 @@ const mysql = require('mysql2')
 const config = require('./config')
 const RBAC = require('./roles')
 const core = require('./core')
+const helper = require('./helper')
 
 const app = express();
 app.use(bodyParser.json());
@@ -161,11 +162,7 @@ app.get('/users/:id', verifyToken, async (req, res) => {
         userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
         const user = await core.getUser(id)
-        // res.setHeader('content-range', 1);
-        return res.status(200).json({
-            'id': user[0].id,
-            'data': user
-        })
+        return res.status(200).json(user)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -179,7 +176,8 @@ app.put('/users/:id', verifyToken, async (req, res) => {
         dataNew = req.body
 
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const user = await core.updateUser(id, dataNew)
+        const dataToUpdate = helper.formatDatesInObject(dataNew, 'YYYY-MM-DD HH:mm:ss')
+        const user = await core.updateUser(id, dataToUpdate)
         return res.status(200).json({
             'id': userId,
             'procedure': 'updated',
@@ -191,13 +189,22 @@ app.put('/users/:id', verifyToken, async (req, res) => {
 })
 
 app.get('/user', verifyToken, (req, res) => {
+    console.log('Вызван GET-метод');
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'users')) {
         const user = core.getUser(userId)
+        console.log(user)
         return res.status(200).json(JSON.stringify(user))
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
+})
+
+app.post('/create-user', verifyToken, async (req, res) => {
+    console.log('Вызван POST-метод');
+    const userId = req.userId
+    console.log(userId);
+    
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
@@ -269,10 +276,9 @@ app.delete('/users/:id', verifyToken, (req, res) => {
     });
 });
 
-
 app.get('/offices', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод');
-    console.log('Запрос /users с параметрами: ', req.params);
+    console.log('Запрос /offices с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'office')) {
         const offices = await core.getOfficesList(),
@@ -284,6 +290,55 @@ app.get('/offices', verifyToken, async (req, res) => {
     }
 })
 
+
+app.get('/office', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    const filter = JSON.parse(req.query.filter)
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'offices')) {
+        const office = await core.getOffice(filter.id),
+            range = office.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(office)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/offices/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /offices с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    if (core.canUserAction(userId, 'read', 'office')) {
+        const office = await core.getOffice(id)
+        return res.status(200).json({
+            'id': office[0].id,
+            'data': office
+        })
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.put('/offices/:id', verifyToken, async (req, res) => {
+    console.log('Вызван PUT-метод /offices');
+    console.log('Запрос /offices/:id с параметрами: ', req.body);
+    const id = req.params.id,
+        userId = req.userId,
+        dataNew = req.body
+
+    if (core.canUserAction(userId, 'getList', 'office')) {
+        const user = await core.updateOffice(id, dataNew)
+        return res.status(200).json({
+            'id': userId,
+            'procedure': 'updated',
+            'status': 'updated'
+        })
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 app.post('/createoffice', verifyToken, async (req, res) => {
     console.log('Поступил запрос на создание офиса: ', req.body);

@@ -33,7 +33,7 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(){
-    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users', [])
+    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users', [])
     if (users.length === 0) {
         return []
     } else {
@@ -42,7 +42,7 @@ async function getUserList(){
 }
 
 async function getOfficesList(){
-    const offices = await dbp.query('SELECT id, title, address, phone FROM office', [])
+    const offices = await dbp.query('SELECT id, title, address, phone, state FROM office', [])
     if (offices.length === 0) {
         return []
     } else {
@@ -51,8 +51,11 @@ async function getOfficesList(){
 }
 
 async function getUser(userId){
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate FROM users where id = ?', [userId])
-    return user
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users where id = ?', [userId])
+    if(user.length === 0){
+        return false
+    }
+    return user[0]
 }
 
 async function updateUser(userId, data){
@@ -70,8 +73,13 @@ async function getOfficeList(){
 }
 
 async function getOffice(officeId){
-    const [row] = await dbp.query('SELECT * FROM office where id = ?', [officeId])
+    const [row] = await dbp.query('SELECT * FROM office where id in (?)', [officeId])
     return row
+}
+
+async function updateOffice(userId, data){
+    const [office] = await dbp.query('UPDATE office SET ? WHERE id = ?', [data, userId])
+    return office
 }
 
 async function addUserOffice(userId, officeId, role){
@@ -166,6 +174,7 @@ module.exports = {
     updateUser,
     getOfficeList,
     getOffice,
+    updateOffice,
     addUserOffice,
     getExchangeList,
     getExchange,
