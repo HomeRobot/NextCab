@@ -26,7 +26,7 @@ async function canUserAction(userId, action, resource) {
     const permissions = await getUserPermissions(userId)
     for(let act of permissions){
         if(act.includes(action) && act.resource == resource){
-            return true        
+            return true
         }
     }
     return false
@@ -73,8 +73,15 @@ async function getOfficeList(){
 }
 
 async function getOffice(officeId){
-    const [row] = await dbp.query('SELECT * FROM office where id in (?)', [officeId])
-    return row
+    const [office] = await dbp.query('SELECT * FROM office where id in (?)', [officeId])
+    // console.log(office)
+    if(office.length === 0){
+        return false
+    }
+    if(office.length === 1){
+        return office[0]
+    }
+    return office
 }
 
 async function updateOffice(userId, data){
@@ -162,7 +169,14 @@ async function pauseBot(botId, pauseUntil = null){
     await dbp.query('UPDATE bot SET status = 2, pause_until = ? WHERE id = ?', [botId, pauseUntil])
 }
 
-
+async function getStatesList(){
+    const states = await dbp.query('SELECT * FROM states', [])
+    if (states.length === 0) {
+        return []
+    } else {
+        return states[0]
+    }
+}
 
 module.exports = {
     getUserRole,
@@ -171,6 +185,7 @@ module.exports = {
     getUserList,
     getOfficesList,
     getUser,
+    getStatesList,
     updateUser,
     getOfficeList,
     getOffice,

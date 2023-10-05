@@ -190,6 +190,7 @@ app.put('/users/:id', verifyToken, async (req, res) => {
 
 app.get('/user', verifyToken, (req, res) => {
     console.log('Вызван GET-метод');
+    console.log('Запрос /user с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'users')) {
         const user = core.getUser(userId)
@@ -202,9 +203,34 @@ app.get('/user', verifyToken, (req, res) => {
 
 app.post('/create-user', verifyToken, async (req, res) => {
     console.log('Вызван POST-метод');
-    const userId = req.userId
-    console.log(userId);
-    
+    const userId = req.userId,
+        userRole = await core.getUserRole(userId)
+    console.log(req.body);
+
+    // const { username, password, email } = req.body
+
+    if (userRole !== 'admin') {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+    // Хеширование пароля перед сохранением в базу данных
+    /* const saltRounds = 10;
+    bcrypt.hash(password, saltRounds, (err, hash) => {
+        if (err) {
+            return res.status(500).json({ error: 'Password hash error' });
+        }
+
+        const user = { username, password: hash, email, role: 'client' };
+        db.query('INSERT INTO users SET ?', user, (err, result) => {
+            if (err) {
+                console.error('Ошибка при создании пользователя:', err);
+                return res.status(500).json({ error: 'Error while creating user' });
+            }
+            return res.status(201).json({
+                id: result.insertId,
+                message: 'User created successfully'
+            });
+        });
+    }); */
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
@@ -276,6 +302,21 @@ app.delete('/users/:id', verifyToken, (req, res) => {
     });
 });
 
+app.get('/office', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /office с параметрами: ', req.params);
+    const filter = JSON.parse(req.query.filter)
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'offices')) {
+        const office = await core.getOffice(filter.id),
+            range = office.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(office)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
 app.get('/offices', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод');
     console.log('Запрос /offices с параметрами: ', req.params);
@@ -290,32 +331,14 @@ app.get('/offices', verifyToken, async (req, res) => {
     }
 })
 
-
-app.get('/office', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    const filter = JSON.parse(req.query.filter)
-    const userId = req.userId
-    if (core.canUserAction(userId, 'read', 'offices')) {
-        const office = await core.getOffice(filter.id),
-            range = office.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(office)
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-})
-
 app.get('/offices/:id', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод');
-    console.log('Запрос /offices с параметрами: ', req.params);
+    console.log('Запрос /officess/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'read', 'office')) {
         const office = await core.getOffice(id)
-        return res.status(200).json({
-            'id': office[0].id,
-            'data': office
-        })
+        return res.status(200).json(office)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -360,6 +383,21 @@ app.post('/createoffice', verifyToken, async (req, res) => {
         });
     });
 });
+
+
+app.get('/states', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /states с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'states')) {
+        const states = await core.getStatesList(),
+            range = states.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(states)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 const port = 3003;
 app.listen(port, () => {
