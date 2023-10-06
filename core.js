@@ -33,7 +33,7 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(){
-    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users', [])
+    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users', [])
     if (users.length === 0) {
         return []
     } else {
@@ -42,7 +42,7 @@ async function getUserList(){
 }
 
 async function getOfficesList(){
-    const offices = await dbp.query('SELECT id, title, address, phone, state FROM office', [])
+    const offices = await dbp.query('SELECT id, title, address, phone, url, state FROM office', [])
     if (offices.length === 0) {
         return []
     } else {
@@ -51,7 +51,7 @@ async function getOfficesList(){
 }
 
 async function getUser(userId){
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, office_id FROM users where id = ?', [userId])
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id = ?', [userId])
     if(user.length === 0){
         return false
     }
@@ -90,7 +90,7 @@ async function updateOffice(userId, data){
 }
 
 async function addUserOffice(userId, officeId, role){
-    const res = await dbp.query('INSERT INTO user_office (user_id, office_id, role) VALUES (?, ?, ?)', [userId, officeId, role])
+    const res = await dbp.query('INSERT INTO user_office (user_id, officeId, role) VALUES (?, ?, ?)', [userId, officeId, role])
     return res.insertId
 }
 
@@ -131,7 +131,7 @@ async function editExchange(id, title = '', state = ''){
 
 async function getBotList(officeId = ''){
     if(officeId != ''){
-        const rows = await dbp.query('SELECT * FROM bot where office_id = ?', [officeId])
+        const rows = await dbp.query('SELECT * FROM bot where officeId = ?', [officeId])
         if (rows.length === 0) {
             return []
         } else {
@@ -178,14 +178,24 @@ async function getStatesList(){
     }
 }
 
+async function getRolesList(){
+    const states = await dbp.query('SELECT * FROM roles', [])
+    if (states.length === 0) {
+        return []
+    } else {
+        return states[0]
+    }
+}
+
 module.exports = {
+    getStatesList,
+    getRolesList,
     getUserRole,
     getUserPermissions,
     canUserAction,
     getUserList,
     getOfficesList,
     getUser,
-    getStatesList,
     updateUser,
     getOfficeList,
     getOffice,

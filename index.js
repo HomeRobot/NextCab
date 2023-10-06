@@ -207,19 +207,20 @@ app.post('/create-user', verifyToken, async (req, res) => {
         userRole = await core.getUserRole(userId)
     console.log(req.body);
 
-    // const { username, password, email } = req.body
+    const { username, password, firstName, lastName, email, telegram, role, officeId, state } = req.body
 
-    if (userRole !== 'admin') {
+    if (userRole !== 1) {
         return res.status(403).json({ error: 'No permissions' });
     }
+
     // Хеширование пароля перед сохранением в базу данных
-    /* const saltRounds = 10;
+    const saltRounds = 10;
     bcrypt.hash(password, saltRounds, (err, hash) => {
         if (err) {
             return res.status(500).json({ error: 'Password hash error' });
         }
 
-        const user = { username, password: hash, email, role: 'client' };
+        const user = { username, password: hash, firstName, lastName, email, telegram, role, officeId, state };
         db.query('INSERT INTO users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
@@ -230,7 +231,7 @@ app.post('/create-user', verifyToken, async (req, res) => {
                 message: 'User created successfully'
             });
         });
-    }); */
+    });
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
@@ -363,15 +364,15 @@ app.put('/offices/:id', verifyToken, async (req, res) => {
     }
 })
 
-app.post('/createoffice', verifyToken, async (req, res) => {
+app.post('/create-office', verifyToken, async (req, res) => {
     console.log('Поступил запрос на создание офиса: ', req.body);
-    const { title, address, phone, state } = req.body;
+    const { title, address, phone, url, state } = req.body;
 
     if (!title || !address || !phone || !state) {
         return res.status(400).json({ error: 'Please provide all required fields' });
     }
 
-    const office = { title, address, phone, state };
+    const office = { title, address, phone, url, state };
     db.query('INSERT INTO office SET ?', office, (err, result) => {
         if (err) {
             console.error('Ошибка при создании офиса:', err);
@@ -384,13 +385,26 @@ app.post('/createoffice', verifyToken, async (req, res) => {
     });
 });
 
-
 app.get('/states', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод');
     console.log('Запрос /states с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'states')) {
         const states = await core.getStatesList(),
+            range = states.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(states)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/roles', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /roles с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'roles')) {
+        const states = await core.getRolesList(),
             range = states.length
         res.setHeader('content-range', range);
         return res.status(200).json(states)
