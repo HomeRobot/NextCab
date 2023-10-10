@@ -161,8 +161,10 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const user = await core.getUser(id)
-        return res.status(200).json(user)
+        const users = await core.getUser(id),
+            range = users.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(users)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -248,16 +250,58 @@ app.get('/exchanges', verifyToken, async (req, res) => {
     }
 })
 
+app.get('/exchange', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /exchange с параметрами: ', req.params);
+    const filter = JSON.parse(req.query.filter)
+    const userId = req.userId
+    console.log(filter)
+    if (core.canUserAction(userId, 'read', 'exchange')) {
+        const exchange = await core.getExchange(filter.id),
+            range = exchange.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(exchange)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/exchange/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /exchange/:id с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    if (core.canUserAction(userId, 'read', 'exchange')) {
+        const exchange = await core.getExchange(id)
+        return res.status(200).json(exchange)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 app.get('/bots', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод');
-    console.log('Запрос /users с параметрами: ', req.params);
+    console.log('Запрос /bots с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bot')) {
         const users = await core.getBotList(),
             range = users.length
-        res.setHeader('content-range', range);
+        console.log(range)
+        res.setHeader('Content-Range', 10);
         return res.status(200).json(users)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/bots/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод');
+    console.log('Запрос /bots/:id с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    if (core.canUserAction(userId, 'read', 'bots')) {
+        const bots = await core.getBot(id)
+        return res.status(200).json(bots)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }

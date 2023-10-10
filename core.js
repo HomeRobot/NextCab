@@ -51,11 +51,19 @@ async function getOfficesList(){
 }
 
 async function getUser(userId){
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id = ?', [userId])
-    if(user.length === 0){
+    const [row] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id in (?)', [userId])
+    /* if(user.length === 0){
         return false
     }
-    return user[0]
+    return user[0] */
+
+    if(row.length === 0){
+        return false
+    }
+    if(row.length === 1){
+        return row[0]
+    }
+    return row
 }
 
 async function updateUser(userId, data){
@@ -104,7 +112,14 @@ async function getExchangeList(){
 }
 
 async function getExchange(exchangeId){
-    const [row] = await dbp.query('SELECT * FROM exchange where id = ?', [exchangeId])
+    const [row] = await dbp.query('SELECT * FROM exchange where id in (?)', [exchangeId])
+    console.log(exchangeId)
+    if(row.length === 0){
+        return false
+    }
+    if(row.length === 1){
+        return row[0]
+    }
     return row
 }
 
@@ -131,14 +146,14 @@ async function editExchange(id, title = '', state = ''){
 
 async function getBotList(officeId = ''){
     if(officeId != ''){
-        const rows = await dbp.query('SELECT * FROM bot where officeId = ?', [officeId])
+        const rows = await dbp.query('SELECT * FROM bots where officeId = ?', [officeId])
         if (rows.length === 0) {
             return []
         } else {
             return rows[0]
         }
     }
-    const rows = await dbp.query('SELECT * FROM bot', [])
+    const rows = await dbp.query('SELECT * FROM bots', [])
     if (rows.length === 0) {
         return []
     } else {
@@ -147,8 +162,14 @@ async function getBotList(officeId = ''){
 }
 
 async function getBot(botId){
-    const [row] = await dbp.query('SELECT * FROM bot where id = ?', [botId])
+    const [row] = await dbp.query('SELECT * FROM bots where id in (?)', [botId])
     row.secretKey = ''
+    if(row.length === 0){
+        return false
+    }
+    if(row.length === 1){
+        return row[0]
+    }
     return row
 }
 
