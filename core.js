@@ -208,9 +208,19 @@ async function getRolesList(){
     }
 }
 
+async function getTimeFrames(){
+    const timeframes = await dbp.query('SELECT * FROM timeframes', [])
+    if (timeframes.length === 0) {
+        return []
+    } else {
+        return timeframes[0]
+    }
+}
+
 module.exports = {
     getStatesList,
     getRolesList,
+    getTimeFrames,
     getUserRole,
     getUserPermissions,
     canUserAction,

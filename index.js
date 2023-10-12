@@ -123,10 +123,10 @@ function verifyToken(req, res, next) {
         return res.status(401).json({ error: 'Токен не предоставлен' });
     }
 
-    console.log('Проверка токена (функция verifyToken): ' + token)
+    // console.log('Проверка токена (функция verifyToken): ' + token)
     jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
-            console.log(err)
+            console.log('Токен не прошел проверку', err)
             return res.status(500).json({ error: 'Ошибка при проверке токена' });
         }
 
@@ -142,8 +142,7 @@ function verifyToken(req, res, next) {
 }
 
 app.get('/users', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /users с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /users с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
         const users = await core.getUserList(),
@@ -156,8 +155,7 @@ app.get('/users', verifyToken, async (req, res) => {
 })
 
 app.get('/users/:id', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод /users');
-    console.log('Запрос /users/:id с параметрами: ', req.params);
+    console.log('Вызван GET-метод /users. Запрос /users/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
@@ -171,8 +169,7 @@ app.get('/users/:id', verifyToken, async (req, res) => {
 })
 
 app.put('/users/:id', verifyToken, async (req, res) => {
-    console.log('Вызван PUT-метод /users');
-    console.log('Запрос /users/:id с параметрами: ', req.body);
+    console.log('Вызван PUT-метод /users. Запрос /users/:id с параметрами: ', req.body);
     const id = req.params.id,
         userId = req.userId,
         dataNew = req.body
@@ -191,8 +188,7 @@ app.put('/users/:id', verifyToken, async (req, res) => {
 })
 
 app.get('/user', verifyToken, (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /user с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /user с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'users')) {
         const user = core.getUser(userId)
@@ -204,7 +200,7 @@ app.get('/user', verifyToken, (req, res) => {
 })
 
 app.post('/create-user', verifyToken, async (req, res) => {
-    console.log('Вызван POST-метод');
+    console.log('Вызван POST-метод /create-user');
     const userId = req.userId,
         userRole = await core.getUserRole(userId)
     console.log(req.body);
@@ -237,8 +233,7 @@ app.post('/create-user', verifyToken, async (req, res) => {
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /users с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /exchanges с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'exchange')) {
         const users = await core.getExchangeList(),
@@ -251,8 +246,7 @@ app.get('/exchanges', verifyToken, async (req, res) => {
 })
 
 app.get('/exchange', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /exchange с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /exchange с параметрами: ', req.params);
     const filter = JSON.parse(req.query.filter)
     const userId = req.userId
     console.log(filter)
@@ -267,8 +261,7 @@ app.get('/exchange', verifyToken, async (req, res) => {
 })
 
 app.get('/exchange/:id', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /exchange/:id с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /exchange/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'read', 'exchange')) {
@@ -280,8 +273,7 @@ app.get('/exchange/:id', verifyToken, async (req, res) => {
 })
 
 app.get('/bots', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /bots с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /bots с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bot')) {
         const users = await core.getBotList(),
@@ -295,8 +287,7 @@ app.get('/bots', verifyToken, async (req, res) => {
 })
 
 app.get('/bots/:id', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /bots/:id с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /bots/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'read', 'bots')) {
@@ -348,8 +339,7 @@ app.delete('/users/:id', verifyToken, (req, res) => {
 });
 
 app.get('/office', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /office с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /office с параметрами: ', req.params);
     const filter = JSON.parse(req.query.filter)
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'offices')) {
@@ -363,8 +353,7 @@ app.get('/office', verifyToken, async (req, res) => {
 })
 
 app.get('/offices', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /offices с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /offices с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'office')) {
         const offices = await core.getOfficesList(),
@@ -377,8 +366,7 @@ app.get('/offices', verifyToken, async (req, res) => {
 })
 
 app.get('/offices/:id', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /officess/:id с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /officess/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'read', 'office')) {
@@ -390,8 +378,7 @@ app.get('/offices/:id', verifyToken, async (req, res) => {
 })
 
 app.put('/offices/:id', verifyToken, async (req, res) => {
-    console.log('Вызван PUT-метод /offices');
-    console.log('Запрос /offices/:id с параметрами: ', req.body);
+    console.log('Вызван PUT-метод /offices. Запрос /offices/:id с параметрами: ', req.body);
     const id = req.params.id,
         userId = req.userId,
         dataNew = req.body
@@ -430,8 +417,7 @@ app.post('/create-office', verifyToken, async (req, res) => {
 });
 
 app.get('/states', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /states с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /states с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'states')) {
         const states = await core.getStatesList(),
@@ -444,14 +430,26 @@ app.get('/states', verifyToken, async (req, res) => {
 })
 
 app.get('/roles', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод');
-    console.log('Запрос /roles с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /roles с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'roles')) {
         const states = await core.getRolesList(),
             range = states.length
         res.setHeader('content-range', range);
         return res.status(200).json(states)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/timeframes', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /timeframes с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'roles')) {
+        const timeframes = await core.getTimeFrames(),
+            range = timeframes.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(timeframes)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
