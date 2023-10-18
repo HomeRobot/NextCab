@@ -455,6 +455,19 @@ app.get('/timeframes', verifyToken, async (req, res) => {
     }
 })
 
+app.get('/periods', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /periods с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'roles')) {
+        const periods = await core.getPeriods(),
+            range = periods.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(periods)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
 const port = 3003;
 app.listen(port, () => {
     console.log(`Сервер запущен на порте ${port}`);

@@ -217,10 +217,20 @@ async function getTimeFrames(){
     }
 }
 
+async function getPeriods(){
+    const periods = await dbp.query('SELECT * FROM periods', [])
+    if (periods.length === 0) {
+        return []
+    } else {
+        return periods[0]
+    }
+}
+
 module.exports = {
     getStatesList,
     getRolesList,
     getTimeFrames,
+    getPeriods,
     getUserRole,
     getUserPermissions,
     canUserAction,
