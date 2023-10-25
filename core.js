@@ -51,19 +51,17 @@ async function getOfficesList(){
 }
 
 async function getUser(userId){
-    const [row] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id in (?)', [userId])
-    /* if(user.length === 0){
-        return false
-    }
-    return user[0] */
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id in (?)', [userId])
 
-    if(row.length === 0){
+    console.log('Это получили из БД', user)
+
+    if(user.length === 0){
         return false
     }
-    if(row.length === 1){
-        return row[0]
+    if(user.length === 1){
+        return user[0]
     }
-    return row
+    return user
 }
 
 async function updateUser(userId, data){
@@ -92,8 +90,8 @@ async function getOffice(officeId){
     return office
 }
 
-async function updateOffice(userId, data){
-    const [office] = await dbp.query('UPDATE office SET ? WHERE id = ?', [data, userId])
+async function updateOffice(id, data){
+    const [office] = await dbp.query('UPDATE office SET ? WHERE id = ?', [data, id])
     return office
 }
 
@@ -126,6 +124,11 @@ async function getExchange(exchangeId){
 async function addExchange(title){
     const res = await dbp.query('INSERT INTO exchange (title) VALUES (?)', [title])
     return res.insertId
+}
+
+async function updateExchange(id, data){
+    const [office] = await dbp.query('UPDATE exchange SET ? WHERE id = ?', [data, id])
+    return office
 }
 
 async function editExchange(id, title = '', state = ''){
@@ -245,6 +248,7 @@ module.exports = {
     getExchangeList,
     getExchange,
     addExchange,
+    updateExchange,
     editExchange,
     getBotList,
     getBot,

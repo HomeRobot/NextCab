@@ -159,9 +159,12 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     const id = req.params.id,
         userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const users = await core.getUser(id),
-            range = users.length
-        res.setHeader('content-range', range);
+        const users = await core.getUser(id)
+        console.log('Это результат вызова функции core.getUser', users)
+        if (typeof users == Array) {
+            const range = users.length
+            res.setHeader('content-range', range);
+        }
         return res.status(200).json(users)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -267,6 +270,58 @@ app.get('/exchange/:id', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'read', 'exchange')) {
         const exchange = await core.getExchange(id)
         return res.status(200).json(exchange)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/exchanges/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /exchange/:id с параметрами: ', req.params);
+    const id = req.params.id,
+        userId = req.userId
+    if (core.canUserAction(userId, 'read', 'exchange')) {
+        const exchange = await core.getExchange(id)
+        return res.status(200).json(exchange)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.post('/create-exchange', verifyToken, async (req, res) => {
+    console.log('Поступил запрос на создание биржи: ', req.body);
+    const { title, currencies, state } = req.body;
+
+    if (!title || !currencies || !state) {
+        return res.status(400).json({ error: 'Please provide all required fields' });
+    }
+
+    const exchange = { title, currencies, state };
+    db.query('INSERT INTO exchange SET ?', exchange, (err, result) => {
+        if (err) {
+            console.error('Ошибка при создании биржи:', err);
+            return res.status(500).json({ error: 'Error while creating exchange' });
+        }
+        return res.status(201).json({
+            id: result.insertId,
+            message: 'Exchange created successfully'
+        });
+    });
+});
+
+
+app.put('/exchanges/:id', verifyToken, async (req, res) => {
+    console.log('Вызван PUT-метод /exchanges. Запрос /exchanges/:id с параметрами: ', req.body);
+    const id = req.params.id,
+        userId = req.userId,
+        dataNew = req.body
+
+    if (core.canUserAction(userId, 'getList', 'office')) {
+        const exchange = await core.updateExchange(id, dataNew)
+        return res.status(200).json({
+            'id': id,
+            'procedure': 'updated',
+            'status': 'updated'
+        })
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
