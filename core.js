@@ -24,24 +24,49 @@ async function getUserPermissions(userId) {
 async function canUserAction(userId, action, resource) {
     return true
     const permissions = await getUserPermissions(userId)
-    for(let act of permissions){
-        if(act.includes(action) && act.resource == resource){
+    for (let act of permissions) {
+        if (act.includes(action) && act.resource == resource) {
             return true
         }
     }
     return false
 }
 
-async function getUserList(){
-    const users = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users', [])
+async function getUserList(query) {
+    const { filter, range, sort } = query;
+    let queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users';
+    let queryParams = [];
+    const filterObject = JSON.parse(filter);
+
+    if (Object.keys(filterObject).length > 0) {
+        const whereClauses = [];
+
+        for (const key in filterObject) {
+            const filterValue = filterObject[key];
+
+            if (Array.isArray(filterValue)) {
+                const placeholders = Array.from({ length: filterValue.length }, () => '?');
+                whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+                queryParams.push(...filterValue);
+            } else {
+                whereClauses.push(`${key} = ?`);
+                queryParams.push(filterValue);
+            }
+        }
+
+        queryString += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    const users = await dbp.query(queryString, queryParams);
+
     if (users.length === 0) {
-        return []
+        return [];
     } else {
-        return users[0]
+        return users[0];
     }
 }
 
-async function getOfficesList(){
+async function getOfficesList() {
     const offices = await dbp.query('SELECT id, title, address, phone, url, state FROM office', [])
     if (offices.length === 0) {
         return []
@@ -50,26 +75,26 @@ async function getOfficesList(){
     }
 }
 
-async function getUser(userId){
+async function getUser(userId) {
     const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id in (?)', [userId])
 
     console.log('Это получили из БД', user)
 
-    if(user.length === 0){
+    if (user.length === 0) {
         return false
     }
-    if(user.length === 1){
+    if (user.length === 1) {
         return user[0]
     }
     return user
 }
 
-async function updateUser(userId, data){
+async function updateUser(userId, data) {
     const [user] = await dbp.query('UPDATE users SET ? WHERE id = ?', [data, userId])
     return user
 }
 
-async function getOfficeList(){
+async function getOfficeList() {
     const rows = await dbp.query('SELECT * FROM office', [])
     if (rows.length === 0) {
         return []
@@ -78,29 +103,29 @@ async function getOfficeList(){
     }
 }
 
-async function getOffice(officeId){
+async function getOffice(officeId) {
     const [office] = await dbp.query('SELECT * FROM office where id in (?)', [officeId])
     // console.log(office)
-    if(office.length === 0){
+    if (office.length === 0) {
         return false
     }
-    if(office.length === 1){
+    if (office.length === 1) {
         return office[0]
     }
     return office
 }
 
-async function updateOffice(id, data){
+async function updateOffice(id, data) {
     const [office] = await dbp.query('UPDATE office SET ? WHERE id = ?', [data, id])
     return office
 }
 
-async function addUserOffice(userId, officeId, role){
+async function addUserOffice(userId, officeId, role) {
     const res = await dbp.query('INSERT INTO user_office (user_id, officeId, role) VALUES (?, ?, ?)', [userId, officeId, role])
     return res.insertId
 }
 
-async function getExchangeList(){
+async function getExchangeList() {
     const rows = await dbp.query('SELECT * FROM exchange', [])
     if (rows.length === 0) {
         return []
@@ -109,37 +134,37 @@ async function getExchangeList(){
     }
 }
 
-async function getExchange(exchangeId){
+async function getExchange(exchangeId) {
     const [row] = await dbp.query('SELECT * FROM exchange where id in (?)', [exchangeId])
     console.log(exchangeId)
-    if(row.length === 0){
+    if (row.length === 0) {
         return false
     }
-    if(row.length === 1){
+    if (row.length === 1) {
         return row[0]
     }
     return row
 }
 
-async function addExchange(title){
+async function addExchange(title) {
     const res = await dbp.query('INSERT INTO exchange (title) VALUES (?)', [title])
     return res.insertId
 }
 
-async function updateExchange(id, data){
+async function updateExchange(id, data) {
     const [office] = await dbp.query('UPDATE exchange SET ? WHERE id = ?', [data, id])
     return office
 }
 
-async function editExchange(id, title = '', state = ''){
-    if(title == '' && state == ''){
+async function editExchange(id, title = '', state = '') {
+    if (title == '' && state == '') {
         return false
     }
-    if(title == ''){
+    if (title == '') {
         await dbp.query('UPDATE exchange SET state = ? WHERE id = ?', [state, id])
         return true
     }
-    if(state == ''){
+    if (state == '') {
         await dbp.query('UPDATE exchange SET title = ? WHERE id = ?', [title, id])
         return true
     }
@@ -147,8 +172,8 @@ async function editExchange(id, title = '', state = ''){
     return true
 }
 
-async function getBotList(officeId = ''){
-    if(officeId != ''){
+async function getBotList(officeId = '') {
+    if (officeId != '') {
         const rows = await dbp.query('SELECT * FROM bots where officeId = ?', [officeId])
         if (rows.length === 0) {
             return []
@@ -164,36 +189,36 @@ async function getBotList(officeId = ''){
     }
 }
 
-async function getBot(botId){
+async function getBot(botId) {
     const [row] = await dbp.query('SELECT * FROM bots where id in (?)', [botId])
     row.secretKey = ''
-    if(row.length === 0){
+    if (row.length === 0) {
         return false
     }
-    if(row.length === 1){
+    if (row.length === 1) {
         return row[0]
     }
     return row
 }
 
-async function addBot(botData){
+async function addBot(botData) {
     const res = await dbp.query('INSERT INTO bot SET ?', botData)
     return res.insertId
 }
 
-async function stopBot(botId){
+async function stopBot(botId) {
     await dbp.query('UPDATE bot SET status = 0 WHERE id = ?', [botId])
 }
 
-async function startBot(botId){
+async function startBot(botId) {
     await dbp.query('UPDATE bot SET status = 1, pause_until = null WHERE id = ?', [botId])
 }
 
-async function pauseBot(botId, pauseUntil = null){
+async function pauseBot(botId, pauseUntil = null) {
     await dbp.query('UPDATE bot SET status = 2, pause_until = ? WHERE id = ?', [botId, pauseUntil])
 }
 
-async function getStatesList(){
+async function getStatesList() {
     const states = await dbp.query('SELECT * FROM states', [])
     if (states.length === 0) {
         return []
@@ -202,7 +227,7 @@ async function getStatesList(){
     }
 }
 
-async function getRolesList(){
+async function getRolesList() {
     const states = await dbp.query('SELECT * FROM roles', [])
     if (states.length === 0) {
         return []
@@ -211,7 +236,7 @@ async function getRolesList(){
     }
 }
 
-async function getTimeFrames(){
+async function getTimeFrames() {
     const timeframes = await dbp.query('SELECT * FROM timeframes', [])
     if (timeframes.length === 0) {
         return []
@@ -220,7 +245,7 @@ async function getTimeFrames(){
     }
 }
 
-async function getPeriods(){
+async function getPeriods() {
     const periods = await dbp.query('SELECT * FROM periods', [])
     if (periods.length === 0) {
         return []

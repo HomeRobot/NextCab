@@ -142,10 +142,12 @@ function verifyToken(req, res, next) {
 }
 
 app.get('/users', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /users с параметрами: ', req.params);
-    const userId = req.userId
+    // console.log('Вызван GET-метод. Запрос /users с параметрами ЫЫЫЫ: ', req);
+    console.log('Вызван GET-метод. Запрос /users с запросом: ', req.query);
+    const userId = req.userId,
+        userQuery = req.query
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const users = await core.getUserList(),
+        const users = await core.getUserList(userQuery),
             range = users.length
         res.setHeader('content-range', range);
         return res.status(200).json(users)
@@ -331,11 +333,11 @@ app.get('/bots', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /bots с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bot')) {
-        const users = await core.getBotList(),
-            range = users.length
+        const bots = await core.getBotList(),
+            range = bots.length
         console.log(range)
         res.setHeader('Content-Range', 10);
-        return res.status(200).json(users)
+        return res.status(200).json(bots)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
