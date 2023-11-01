@@ -76,7 +76,7 @@ async function getOfficesList() {
 }
 
 async function getUser(userId) {
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users where id in (?)', [userId])
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users WHERE id in (?)', [userId])
 
     console.log('Это получили из БД', user)
 
@@ -104,14 +104,14 @@ async function getOfficeList() {
 }
 
 async function getOffice(officeId) {
-    const [office] = await dbp.query('SELECT * FROM office where id in (?)', [officeId])
-    // console.log(office)
+    const [office] = await dbp.query('SELECT * FROM office WHERE id in (?)', [officeId])
+    console.log('Это результат getOffice получили из БД', office)
     if (office.length === 0) {
         return false
     }
-    if (office.length === 1) {
+    /* if (office.length === 1) {
         return office[0]
-    }
+    } */
     return office
 }
 

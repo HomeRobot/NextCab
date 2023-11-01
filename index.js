@@ -83,7 +83,7 @@ app.post('/login', (req, res) => {
             const token = jwt.sign({
                 userId: user.id,
                 role: user.role
-            }, config.secretKey, { expiresIn: '1h' });
+            }, config.secretKey, { expiresIn: '5min' });
 
             console.log('Токен: ' + token);
 
@@ -120,20 +120,25 @@ function verifyToken(req, res, next) {
     }
 
     if (!token) {
-        return res.status(401).json({ error: 'Токен не предоставлен' });
+        return res.status(401).json({ error: 'No token provided' });
     }
 
     // console.log('Проверка токена (функция verifyToken): ' + token)
     jwt.verify(token, config.secretKey, (err, decoded) => {
         if (err) {
-            console.log('Токен не прошел проверку', err)
-            return res.status(500).json({ error: 'Ошибка при проверке токена' });
+            console.log('Токен не прошел проверку')
+            console.log(err)
+            if (err.name === 'TokenExpiredError') {
+                console.log('Токен протух')
+                return res.status(401).json({ error: 'Token expired' });
+            }
+            return res.status(500).json({ error: err.name });
         }
 
-        const currentTime = Math.floor(Date.now() / 1000); // Текущее время в секундах
+        /* const currentTime = Math.floor(Date.now() / 1000); // Текущее время в секундах
         if (decoded.exp < currentTime) {
-            return res.status(401).json({ error: 'Токен истек' });
-        }
+            return res.status(401).json({ error: 'Token expired' });
+        } */
 
         // Декодированные данные из токена, содержащие идентификатор пользователя (userId)
         req.userId = decoded.userId;
@@ -244,6 +249,7 @@ app.get('/exchanges', verifyToken, async (req, res) => {
         const users = await core.getExchangeList(),
             range = users.length
         res.setHeader('content-range', range);
+        console.log('Это результат вызова функции core.getExchangeList', users)
         return res.status(200).json(users)
     } else {
         return res.status(403).json({ error: 'No permissions' });
