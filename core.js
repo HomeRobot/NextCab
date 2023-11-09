@@ -34,8 +34,67 @@ async function canUserAction(userId, action, resource) {
 
 async function getUserList(query) {
     const { filter, range, sort } = query;
-    let queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users';
-    let queryParams = [];
+    let queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users',
+        queryParams = [],
+        filterObject = JSON.parse(filter),
+        rangeArr = JSON.parse(range),
+        sortArr = JSON.parse(sort);
+
+    console.log('range', range)
+    console.log('range typeof', typeof range)
+    console.log('sort typeof', typeof sort)
+
+    if (Object.keys(filterObject).length > 0) {
+        const whereClauses = [];
+
+        for (const key in filterObject) {
+            const filterValue = filterObject[key];
+
+            if (Array.isArray(filterValue)) {
+                const placeholders = Array.from({ length: filterValue.length }, () => '?');
+                whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+                queryParams.push(...filterValue);
+            } else {
+                whereClauses.push(`${key} = ?`);
+                queryParams.push(filterValue);
+            }
+        }
+
+        queryString += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    if (sortArr && sortArr.length === 2) {
+        const [column, order] = sortArr;
+
+        console.log('column', column)
+        console.log('order', order)
+        queryString += ` ORDER BY ${column} ${order}`;
+    }
+
+    if (rangeArr && rangeArr.length === 2) {
+        const [offset, limit] = rangeArr;
+
+        console.log('offset', offset)
+        console.log('limit', limit)
+        queryString += ` LIMIT ${limit} OFFSET ${offset}`;
+        queryParams.push(limit, offset);
+    }
+
+
+    console.log('queryString', queryString)
+    const users = await dbp.query(queryString, queryParams);
+
+    if (users.length === 0) {
+        return [];
+    } else {
+        return users[0];
+    }
+}
+
+async function getOfficesList(query) {
+    const { filter, range, sort } = query;
+    let queryString = 'SELECT id, title, address, phone, url, state FROM office',
+        queryParams = [];
     const filterObject = JSON.parse(filter);
 
     if (Object.keys(filterObject).length > 0) {
@@ -57,17 +116,8 @@ async function getUserList(query) {
         queryString += ` WHERE ${whereClauses.join(' AND ')}`;
     }
 
-    const users = await dbp.query(queryString, queryParams);
+    const offices = await dbp.query(queryString, queryParams);
 
-    if (users.length === 0) {
-        return [];
-    } else {
-        return users[0];
-    }
-}
-
-async function getOfficesList() {
-    const offices = await dbp.query('SELECT id, title, address, phone, url, state FROM office', [])
     if (offices.length === 0) {
         return []
     } else {
@@ -227,12 +277,37 @@ async function getStatesList() {
     }
 }
 
-async function getRolesList() {
-    const states = await dbp.query('SELECT * FROM roles', [])
-    if (states.length === 0) {
+async function getRolesList(query) {
+    const { filter, range, sort } = query;
+    let queryString = 'SELECT * FROM roles',
+        queryParams = [];
+    const filterObject = JSON.parse(filter);
+
+    if (Object.keys(filterObject).length > 0) {
+        const whereClauses = [];
+
+        for (const key in filterObject) {
+            const filterValue = filterObject[key];
+
+            if (Array.isArray(filterValue)) {
+                const placeholders = Array.from({ length: filterValue.length }, () => '?');
+                whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+                queryParams.push(...filterValue);
+            } else {
+                whereClauses.push(`${key} = ?`);
+                queryParams.push(filterValue);
+            }
+        }
+
+        queryString += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+
+    const roles = await dbp.query(queryString, queryParams);
+
+    if (roles.length === 0) {
         return []
     } else {
-        return states[0]
+        return roles[0]
     }
 }
 

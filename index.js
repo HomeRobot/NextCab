@@ -24,7 +24,7 @@ const db = mysql.createPool({
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
-    console.log('Поступил запрос на регистрацию: ', req.body);
+    console.log('Поступил POST запрос на регистрацию: ', req.body);
     const { username, password, email } = req.body;
 
 
@@ -128,7 +128,8 @@ function verifyToken(req, res, next) {
         if (err) {
             console.log('Токен не прошел проверку')
             console.log(err)
-            if (err.name === 'TokenExpiredError') {
+            const currentTime = Math.floor(Date.now() / 1000); // Текущее время в секундах
+            if (err.name === 'TokenExpiredError' && decoded.exp < currentTime) {
                 console.log('Токен протух')
                 return res.status(401).json({ error: 'Token expired' });
             }
@@ -150,11 +151,11 @@ app.get('/users', verifyToken, async (req, res) => {
     // console.log('Вызван GET-метод. Запрос /users с параметрами ЫЫЫЫ: ', req);
     console.log('Вызван GET-метод. Запрос /users с запросом: ', req.query);
     const userId = req.userId,
-        userQuery = req.query
+        usersQuery = req.query
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const users = await core.getUserList(userQuery),
+        const users = await core.getUserList(usersQuery),
             range = users.length
-        res.setHeader('content-range', range);
+        res.setHeader('content-range', `${range}/17`);
         return res.status(200).json(users)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -168,9 +169,11 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'getList', 'users')) {
         const users = await core.getUser(id)
         console.log('Это результат вызова функции core.getUser', users)
-        if (typeof users == Array) {
-            const range = users.length
-            res.setHeader('content-range', range);
+        console.log('typeof', typeof users)
+        if (Object.keys(users).length > 0) {
+            const range = Object.keys(users)
+            console.log('Кол-во пользователей', range)
+            res.setHeader('content-range', `${range}/17`);
         }
         return res.status(200).json(users)
     } else {
@@ -217,7 +220,7 @@ app.post('/create-user', verifyToken, async (req, res) => {
 
     const { username, password, firstName, lastName, email, telegram, role, officeId, state } = req.body
 
-    if (userRole !== 1) {
+    if (userRole !== 1 && userRole !== 2) {
         return res.status(403).json({ error: 'No permissions' });
     }
 
@@ -228,7 +231,7 @@ app.post('/create-user', verifyToken, async (req, res) => {
             return res.status(500).json({ error: 'Password hash error' });
         }
 
-        const user = { username, password: hash, firstName, lastName, email, telegram, role, officeId, state };
+        const user = { username, password: hash, firstName, lastName, email, telegram, role, officeId, state }
         db.query('INSERT INTO users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
@@ -417,9 +420,10 @@ app.get('/office', verifyToken, async (req, res) => {
 
 app.get('/offices', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /offices с параметрами: ', req.params);
-    const userId = req.userId
+    const userId = req.userId,
+        officeQuery = req.query
     if (core.canUserAction(userId, 'getList', 'office')) {
-        const offices = await core.getOfficesList(),
+        const offices = await core.getOfficesList(officeQuery),
             range = offices.length
         res.setHeader('content-range', range);
         return res.status(200).json(offices)
@@ -459,7 +463,7 @@ app.put('/offices/:id', verifyToken, async (req, res) => {
 })
 
 app.post('/create-office', verifyToken, async (req, res) => {
-    console.log('Поступил запрос на создание офиса: ', req.body);
+    console.log('Поступил POST запрос на создание офиса: ', req.body);
     const { title, address, phone, url, state } = req.body;
 
     if (!title || !address || !phone || !state) {
@@ -494,9 +498,10 @@ app.get('/states', verifyToken, async (req, res) => {
 
 app.get('/roles', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /roles с параметрами: ', req.params);
-    const userId = req.userId
+    const userId = req.userId,
+        roleQuery = req.query
     if (core.canUserAction(userId, 'getList', 'roles')) {
-        const states = await core.getRolesList(),
+        const states = await core.getRolesList(roleQuery),
             range = states.length
         res.setHeader('content-range', range);
         return res.status(200).json(states)
