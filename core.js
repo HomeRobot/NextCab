@@ -33,12 +33,17 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(query) {
+    let queryString = 'SELECT COUNT(*) as count FROM users',
+        queryParams = [];
+    const usersTotal = await dbp.query(queryString, queryParams);
+
+    console.log('usersTotal', usersTotal)
     const { filter, range, sort } = query;
-    let queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users',
-        queryParams = [],
-        filterObject = JSON.parse(filter),
+    let filterObject = JSON.parse(filter),
         rangeArr = JSON.parse(range),
         sortArr = JSON.parse(sort);
+    queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users',
+        queryParams = [],
 
     console.log('range', range)
     console.log('range typeof', typeof range)
