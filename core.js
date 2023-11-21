@@ -155,7 +155,7 @@ async function getOfficeList() {
 
 async function getOffice(officeId) {
     const [office] = await dbp.query('SELECT * FROM office WHERE id in (?)', [officeId])
-    console.log('Это результат getOffice получили из БД', office)
+    // console.log('Это результат getOffice получили из БД', office)
     if (office.length === 0) {
         return false
     }
