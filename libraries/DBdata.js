@@ -3,10 +3,18 @@ class Database {
     this.database = database
   }
 
-  async create(table, data) {
+  async create(table, query) {
     try {
-      // Код для создания записи
-      return createdRecord
+      console.log('create query: ', query)
+      const queryObj = JSON.parse(query)
+
+      console.log('queryObj', queryObj)
+      let queryString = `INSERT INTO ${table} SET ?`
+
+      const response = await this.database.query(queryString, queryObj)
+
+      console.log('create response: ', response)
+      return response
     } catch (error) {
       console.error('Error creating record:', error)
     }
@@ -88,8 +96,8 @@ class Database {
         queryParams.push(limit, offset);
       }
 
-      console.log('queryString', queryString)
-      console.log('queryParams', queryParams)
+      // console.log('queryString', queryString)
+      // console.log('queryParams', queryParams)
 
       const response = await this.database.query(queryString, queryParams)
 

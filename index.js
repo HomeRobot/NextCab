@@ -25,9 +25,9 @@ const db = mysql.createPool({
 
 const dbp = db.promise()
 
-const DB = new Database(dbp);
+const DBase = new Database(dbp);
 
-/* Testing DBData */
+/* Testing DBase */
 DBConnection = async () => {
     const query = JSON.stringify({
         'fields': ['id', 'username'],
@@ -35,7 +35,7 @@ DBConnection = async () => {
         'range': '[0,10]',
         'sort': '["id","DESC"]'
     })
-    // await DB.read('users', query);
+    // await DBase.read('users', query);
 }
 DBConnection();
 
@@ -176,7 +176,7 @@ app.get('/users', verifyToken, async (req, res) => {
 
         requestQuery['fields'] = queryFieldsArr
         const query = JSON.stringify(requestQuery),
-            response = await DB.read('users', query),
+            response = await DBase.read('users', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
@@ -278,7 +278,7 @@ app.get('/exchanges', verifyToken, async (req, res) => {
 
     if (core.canUserAction(userId, 'getList', 'exchange')) {
         const query = JSON.stringify(requestQuery),
-            response = await DB.read('exchange', query),
+            response = await DBase.read('exchange', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
@@ -337,7 +337,7 @@ app.post('/create-exchange', verifyToken, async (req, res) => {
         return res.status(400).json({ error: 'Please provide all required fields' });
     }
 
-    const exchange = { title, currencies, state };
+    /* const exchange = { title, currencies, state };
     db.query('INSERT INTO exchange SET ?', exchange, (err, result) => {
         if (err) {
             console.error('Ошибка при создании биржи:', err);
@@ -347,7 +347,25 @@ app.post('/create-exchange', verifyToken, async (req, res) => {
             id: result.insertId,
             message: 'Exchange created successfully'
         });
-    });
+    }); */
+
+    const query = JSON.stringify(req.body),
+        response = await DBase.create('exchange', query)
+    console.log('response from create: ', response)
+    console.log('response typeof:', typeof response)
+
+    const resultHeader = response[0],
+        serverStatus = resultHeader.serverStatus
+
+    console.log('resultHeader: ', resultHeader)
+    console.log('serverStatus: ', serverStatus)
+
+    if (serverStatus == 2) {
+        return res.status(201).json({
+            id: resultHeader.insertId,
+            message: 'Record created successfully'
+        });
+    }
 });
 
 
@@ -375,12 +393,12 @@ app.get('/bots', verifyToken, async (req, res) => {
         requestQuery = req.query
     if (core.canUserAction(userId, 'getList', 'bot')) {
         const excludeFields = 'apikey, apisecret, apipassword',
-        excludeFieldsArr = excludeFields.split(', ')
+            excludeFieldsArr = excludeFields.split(', ')
 
         requestQuery['excludeFields'] = excludeFieldsArr
 
         const query = JSON.stringify(requestQuery),
-            response = await DB.read('bots', query),
+            response = await DBase.read('bots', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
@@ -466,7 +484,7 @@ app.get('/offices', verifyToken, async (req, res) => {
         requestQuery = req.query
     if (core.canUserAction(userId, 'getList', 'office')) {
         const query = JSON.stringify(requestQuery),
-            response = await DB.read('office', query),
+            response = await DBase.read('office', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
