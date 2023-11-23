@@ -1,22 +1,147 @@
+const { response } = require('express')
+const { isValidJSON } = require('../utils/jsonUtils')
+
 class Database {
   constructor(database) {
     this.database = database
   }
 
-  async create(table, query) {
-    try {
-      console.log('create query: ', query)
-      const queryObj = JSON.parse(query)
+  fieldsToString(fields) {
+    let fieldsString = ''
+    for (let i = 0; i < fields.length; i++) {
+      fieldsString += fields[i]
 
-      console.log('queryObj', queryObj)
+      if (i !== fields.length - 1) {
+        fieldsString += ', '
+      }
+    }
+    return fieldsString
+  }
+
+  buildWhereClause(filter, compareLogic) {
+    const whereClauses = [],
+      queryParams = []
+
+    for (const key in filter) {
+      const filterValue = filter[key];
+
+      if (Array.isArray(filterValue)) {
+        const placeholders = Array.from({ length: filterValue.length }, () => '?');
+        whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+        queryParams.push(...filterValue);
+      } else {
+        whereClauses.push(`${key} = ?`);
+        queryParams.push(filterValue);
+      }
+    }
+
+    const whereClause = whereClauses.join(` ${compareLogic} `);
+    return {
+      whereClause: ` WHERE ${whereClause}`,
+      queryParams: queryParams
+    }
+  }
+
+  async create(table, query) {
+    let returnObj = {
+      'result': 'success',
+      'resultText': 'Record created successfully',
+      'resultData': null
+    }
+    try {
+      const queryObj = JSON.parse(query),
+        { queryFields: queryFieldsData, requiredFields: requiredFieldsData, uniqueFields: uniqueFieldsData } = queryObj
+
+      let queryFields = queryFieldsData,
+        requiredFields = requiredFieldsData,
+        uniqueFields = uniqueFieldsData
+
+      if (typeof queryFields == 'string') {
+        queryFields = JSON.parse(queryFields)
+      }
+      if (typeof requiredFields == 'string') {
+        requiredFields = JSON.parse(requiredFields)
+      }
+      if (typeof uniqueFields == 'string') {
+        uniqueFields = JSON.parse(uniqueFields)
+      }
+
+      if (uniqueFields.length > 0) {
+        let queryString = `SELECT COUNT(id) as total_rows FROM ${table}`
+        const uniqueFieldsObj = Object.entries(queryFields).reduce((obj, [key, value]) => {
+          if (uniqueFields.includes(key)) {
+            obj[key] = value;
+          }
+          return obj;
+        }, {});
+        const { whereClause, queryParams } = this.buildWhereClause(uniqueFieldsObj, 'OR')
+        queryString += whereClause
+        const uniqueFieldsData = await this.database.query(queryString, queryParams)
+
+        if (uniqueFieldsData[0][0].total_rows > 0) {
+          const errorData = {
+            'errorType': 'uniqueFields',
+            'uniqueFields': uniqueFields
+          }
+          throw new Error(JSON.stringify(errorData))
+        }
+      }
+
+      if (requiredFields.length > 0) {
+        requiredFields.forEach((field) => {
+          if (!Object.keys(queryFields).includes(field) ||
+            queryFields[field] === undefined ||
+            queryFields[field] === null ||
+            queryFields[field] === '') {
+            const errorData = {
+              'errorType': 'noRequiredField',
+              'missedField': field
+            }
+            throw new Error(JSON.stringify(errorData))
+          }
+        })
+      }
+
       let queryString = `INSERT INTO ${table} SET ?`
 
-      const response = await this.database.query(queryString, queryObj)
+      console.log('queryString: ', queryString)
 
-      console.log('create response: ', response)
-      return response
+      const response = await this.database.query(queryString, queryFields)
+
+      returnObj.resultData = response
+
+      return JSON.stringify(returnObj)
     } catch (error) {
-      console.error('Error creating record:', error)
+      //console.log('catch error : ', error)
+      //console.log('catch typeof error : ', typeof error)
+
+      returnObj.result = 'error'
+      returnObj.resultText = 'Error creating record'
+      returnObj.resultData = {
+        'error': JSON.stringify(error)
+      }
+
+      //console.log('catch error.message : ', error.message)
+
+      if (!error.errno && isValidJSON(error.message)) {
+        const errorData = JSON.parse(error.message),
+          errorType = errorData.errorType
+
+        if (errorType == 'noRequiredField') {
+          returnObj.resultText = 'Missing required field'
+          returnObj.resultData = {
+            'error': errorData
+          }
+        }
+        if (errorType == 'uniqueFields') {
+          returnObj.resultText = 'Records with the specified key values already exist'
+          returnObj.resultData = {
+            'error': errorData
+          }
+        }
+      }
+
+      return JSON.stringify(returnObj)
     }
   }
 
@@ -28,9 +153,9 @@ class Database {
         totalRows = countRows[0][0].total_rows
 
       let returnObj = {
-          'records': [],
-          'totalRows': totalRows
-        }
+        'records': [],
+        'totalRows': totalRows
+      }
 
       if (totalRows === 0) {
         return returnObj

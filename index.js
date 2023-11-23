@@ -1,3 +1,5 @@
+// import text from './constants.json'
+
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
@@ -240,35 +242,43 @@ app.get('/user', verifyToken, (req, res) => {
 
 app.post('/create-user', verifyToken, async (req, res) => {
     console.log('Вызван POST-метод /create-user');
-    const userId = req.userId,
-        userRole = await core.getUserRole(userId)
-    console.log(req.body);
+    const userId = req.userId
 
-    const { username, password, firstName, lastName, email, telegram, role, officeId, state } = req.body
+    if (core.canUserAction(userId, 'create', 'users')) {
+        const { password } = req.body,
+            saltRounds = 10
+        try {
+            const passHash = await bcrypt.hash(password, saltRounds),
+                queryFieldsWithHashedPassword = req.body
 
-    if (userRole !== 1 && userRole !== 2) {
+            queryFieldsWithHashedPassword['password'] = passHash
+            const query = JSON.stringify({
+                'queryFields': queryFieldsWithHashedPassword,
+                'requiredFields': ['username', 'password', 'firstName', 'lastName', 'email', 'telegram', 'role', 'officeId', 'state'],
+                'uniqueFields': ['username', 'email']
+            }),
+                response = JSON.parse(await DBase.create('users', query)),
+                { result: responseResult, resultText: responseText, resultData: responseData } = response
+            if (responseResult == 'success') {
+                return res.status(201).json({
+                    id: responseData[0].insertId,
+                    message: responseText
+                });
+            }
+            if (responseResult == 'error') {
+                return res.status(500).json({
+                    error: responseText,
+                    errorData: responseData
+                });
+            }
+        } catch (error) {
+            return res.status(500).json({
+                error: error.message
+            });
+        }
+    } else {
         return res.status(403).json({ error: 'No permissions' });
     }
-
-    // Хеширование пароля перед сохранением в базу данных
-    const saltRounds = 10;
-    bcrypt.hash(password, saltRounds, (err, hash) => {
-        if (err) {
-            return res.status(500).json({ error: 'Password hash error' });
-        }
-
-        const user = { username, password: hash, firstName, lastName, email, telegram, role, officeId, state }
-        db.query('INSERT INTO users SET ?', user, (err, result) => {
-            if (err) {
-                console.error('Ошибка при создании пользователя:', err);
-                return res.status(500).json({ error: 'Error while creating user' });
-            }
-            return res.status(201).json({
-                id: result.insertId,
-                message: 'User created successfully'
-            });
-        });
-    });
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
@@ -330,44 +340,34 @@ app.get('/exchanges/:id', verifyToken, async (req, res) => {
 })
 
 app.post('/create-exchange', verifyToken, async (req, res) => {
-    console.log('Поступил запрос на создание биржи: ', req.body);
-    const { title, currencies, state } = req.body;
+    console.log('Поступил POST запрос на создание биржи: ', req.body);
+    const userId = req.userId
 
-    if (!title || !currencies || !state) {
-        return res.status(400).json({ error: 'Please provide all required fields' });
-    }
+    if (core.canUserAction(userId, 'create', 'exchange')) {
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(req.body),
+            'requiredFields': ['title', 'currencies', 'state'],
+            'uniqueFields': ['title']
+        }),
+            response = JSON.parse(await DBase.create('exchange', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
 
-    /* const exchange = { title, currencies, state };
-    db.query('INSERT INTO exchange SET ?', exchange, (err, result) => {
-        if (err) {
-            console.error('Ошибка при создании биржи:', err);
-            return res.status(500).json({ error: 'Error while creating exchange' });
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
         }
-        return res.status(201).json({
-            id: result.insertId,
-            message: 'Exchange created successfully'
-        });
-    }); */
-
-    const query = JSON.stringify(req.body),
-        response = await DBase.create('exchange', query)
-    console.log('response from create: ', response)
-    console.log('response typeof:', typeof response)
-
-    const resultHeader = response[0],
-        serverStatus = resultHeader.serverStatus
-
-    console.log('resultHeader: ', resultHeader)
-    console.log('serverStatus: ', serverStatus)
-
-    if (serverStatus == 2) {
-        return res.status(201).json({
-            id: resultHeader.insertId,
-            message: 'Record created successfully'
-        });
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
     }
 });
-
 
 app.put('/exchanges/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /exchanges. Запрос /exchanges/:id с параметрами: ', req.body);
@@ -528,23 +528,33 @@ app.put('/offices/:id', verifyToken, async (req, res) => {
 
 app.post('/create-office', verifyToken, async (req, res) => {
     console.log('Поступил POST запрос на создание офиса: ', req.body);
-    const { title, address, phone, url, state } = req.body;
+    const userId = req.userId
 
-    if (!title || !address || !phone || !state) {
-        return res.status(400).json({ error: 'Please provide all required fields' });
-    }
+    if (core.canUserAction(userId, 'create', 'office')) {
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(req.body),
+            'requiredFields': ['title', 'address', 'phone', 'state'],
+            'uniqueFields': ['title', 'address', 'phone']
+        })
 
-    const office = { title, address, phone, url, state };
-    db.query('INSERT INTO office SET ?', office, (err, result) => {
-        if (err) {
-            console.error('Ошибка при создании офиса:', err);
-            return res.status(500).json({ error: 'Error while creating office' });
+        const response = JSON.parse(await DBase.create('office', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
+
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
         }
-        return res.status(201).json({
-            id: result.insertId,
-            message: 'Office created successfully'
-        });
-    });
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
 });
 
 app.get('/states', verifyToken, async (req, res) => {

@@ -1,0 +1,6 @@
+{
+    "GREETING": "Hello,",
+    "FAREWELL": "Goodbye!",
+    "RECORD_CREATION_SUCCESSFUL": "Record created successfully",
+    "RECORD_CREATION_ERROR": "Error while creating record"
+}
