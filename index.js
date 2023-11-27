@@ -191,38 +191,34 @@ app.get('/users', verifyToken, async (req, res) => {
 })
 
 app.get('/users/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод /users. Запрос /users/:id с параметрами: ', req.params);
-    const id = req.params.id,
-        userId = req.userId
+    const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const users = await core.getUser(id)
-        console.log('Это результат вызова функции core.getUser', users)
-        console.log('typeof', typeof users)
-        if (Object.keys(users).length > 0) {
-            const range = Object.keys(users)
-            console.log('Кол-во пользователей', range)
-            res.setHeader('content-range', `${range}/17`);
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('users', query),
+            record = response.records[0]
+
+        if ('password' in record) {
+            delete record.password
         }
-        return res.status(200).json(users)
+
+        return res.status(200).json(record)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.put('/users/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван PUT-метод /users. Запрос /users/:id с параметрами: ', req.body);
-    const id = req.params.id,
-        userId = req.userId,
-        dataNew = req.body
-
-    if (core.canUserAction(userId, 'getList', 'users')) {
-        const dataToUpdate = helper.formatDatesInObject(dataNew, 'YYYY-MM-DD HH:mm:ss')
-        const user = await core.updateUser(id, dataToUpdate)
-        return res.status(200).json({
-            'id': userId,
-            'procedure': 'updated',
-            'status': 'updated'
-        })
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'users')) {
+        const query = JSON.stringify({
+            'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
+        }),
+            response = await DBase.update('users', query)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -241,6 +237,7 @@ app.get('/user', verifyToken, (req, res) => {
 })
 
 app.post('/create-user', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван POST-метод /create-user');
     const userId = req.userId
 
@@ -282,12 +279,12 @@ app.post('/create-user', verifyToken, async (req, res) => {
 })
 
 app.get('/exchanges', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /exchanges с параметрами: ', req.params);
-    const userId = req.userId,
-        requestQuery = req.query
-
+    const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'exchange')) {
-        const query = JSON.stringify(requestQuery),
+        const requestQuery = req.query,
+            query = JSON.stringify(requestQuery),
             response = await DBase.read('exchange', query),
             range = requestQuery.range,
             records = response.records,
@@ -301,21 +298,27 @@ app.get('/exchanges', verifyToken, async (req, res) => {
 })
 
 app.get('/exchange', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /exchange с параметрами: ', req.params);
-    const filter = JSON.parse(req.query.filter)
     const userId = req.userId
-    console.log(filter)
-    if (core.canUserAction(userId, 'read', 'exchange')) {
-        const exchange = await core.getExchange(filter.id),
-            range = exchange.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(exchange)
+
+    if (core.canUserAction(userId, '', 'exchange')) {
+        const requestQuery = req.query,
+            query = JSON.stringify(requestQuery),
+            response = await DBase.read('exchange', query),
+            range = requestQuery.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
-app.get('/exchange/:id', verifyToken, async (req, res) => {
+/* app.get('/exchange/:id', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /exchange/:id с параметрами: ', req.params);
     const id = req.params.id,
         userId = req.userId
@@ -325,21 +328,25 @@ app.get('/exchange/:id', verifyToken, async (req, res) => {
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
-})
+}) */
 
 app.get('/exchanges/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /exchange/:id с параметрами: ', req.params);
-    const id = req.params.id,
-        userId = req.userId
+    const userId = req.userId
     if (core.canUserAction(userId, 'read', 'exchange')) {
-        const exchange = await core.getExchange(id)
-        return res.status(200).json(exchange)
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('exchange', query),
+            record = response.records[0]
+
+        return res.status(200).json(record)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.post('/create-exchange', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Поступил POST запрос на создание биржи: ', req.body);
     const userId = req.userId
 
@@ -370,29 +377,29 @@ app.post('/create-exchange', verifyToken, async (req, res) => {
 });
 
 app.put('/exchanges/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван PUT-метод /exchanges. Запрос /exchanges/:id с параметрами: ', req.body);
-    const id = req.params.id,
-        userId = req.userId,
-        dataNew = req.body
+    const userId = req.userId
 
-    if (core.canUserAction(userId, 'getList', 'office')) {
-        const exchange = await core.updateExchange(id, dataNew)
-        return res.status(200).json({
-            'id': id,
-            'procedure': 'updated',
-            'status': 'updated'
-        })
+    if (core.canUserAction(userId, 'update', 'exchange')) {
+        const query = JSON.stringify({
+            'fields': JSON.stringify(req.body)
+        }),
+            response = JSON.parse(await DBase.update('exchange', query))
+        // const exchange = await core.updateExchange(id, req.body)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.get('/bots', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /bots с параметрами: ', req.params);
-    const userId = req.userId,
-        requestQuery = req.query
-    if (core.canUserAction(userId, 'getList', 'bot')) {
-        const excludeFields = 'apikey, apisecret, apipassword',
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'bots')) {
+        const requestQuery = req.query,
+            excludeFields = 'apikey, apisecret, apipassword',
             excludeFieldsArr = excludeFields.split(', ')
 
         requestQuery['excludeFields'] = excludeFieldsArr
@@ -403,8 +410,6 @@ app.get('/bots', verifyToken, async (req, res) => {
             records = response.records,
             totalRows = response.totalRows
 
-        console.log('records: ', records);
-
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
     } else {
@@ -413,16 +418,61 @@ app.get('/bots', verifyToken, async (req, res) => {
 })
 
 app.get('/bots/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /bots/:id с параметрами: ', req.params);
-    const id = req.params.id,
-        userId = req.userId
+    const userId = req.userId
     if (core.canUserAction(userId, 'read', 'bots')) {
-        const bots = await core.getBot(id)
-        return res.status(200).json(bots)
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('bots', query),
+            record = response.records[0]
+
+        if ('apikey' in record) {
+            delete record.apikey
+        }
+        if ('apisecret' in record) {
+            delete record.apisecret
+        }
+        if ('apipassword' in record) {
+            delete record.apipassword
+        }
+
+        return res.status(200).json(record)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+
+app.post('/create-bot', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Поступил POST запрос на создание офиса: ', req.body);
+    const userId = req.userId
+
+    if (core.canUserAction(userId, 'create', 'bot')) {
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(req.body),
+            'requiredFields': ['title', 'exchange', 'client_id', 'state'],
+            'uniqueFields': ['title']
+        })
+
+        const response = JSON.parse(await DBase.create('bots', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
+
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
+        }
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+});
 
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;
@@ -446,24 +496,6 @@ app.get('/getPermissions', verifyToken, (req, res) => {
     return res.json(RBAC.roles)
 })
 
-app.delete('/users/:id', verifyToken, (req, res) => {
-    const id = req.params.id;
-    console.log('Поступил запрос на удаление пользователя: ', req.params);
-
-    if (!id) {
-        return res.status(400).json({ error: 'Please provide an id' });
-    }
-
-    const query = `DELETE FROM users WHERE id = ?`;
-    db.query(query, [id], (err, result) => {
-        if (err) {
-            console.error('Ошибка при удалении элемента:', err);
-            return res.status(500).json({ error: 'Error while deleting user' });
-        }
-        return res.status(200).json({ message: 'User deleted successfully' });
-    });
-});
-
 app.get('/office', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /office с параметрами: ', req.params);
     const filter = JSON.parse(req.query.filter)
@@ -479,11 +511,12 @@ app.get('/office', verifyToken, async (req, res) => {
 })
 
 app.get('/offices', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /offices с параметрами: ', req.params);
-    const userId = req.userId,
-        requestQuery = req.query
+    const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'office')) {
-        const query = JSON.stringify(requestQuery),
+        const requestQuery = req.query,
+            query = JSON.stringify(requestQuery),
             response = await DBase.read('office', query),
             range = requestQuery.range,
             records = response.records,
@@ -497,36 +530,37 @@ app.get('/offices', verifyToken, async (req, res) => {
 })
 
 app.get('/offices/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /officess/:id с параметрами: ', req.params);
-    const id = req.params.id,
-        userId = req.userId
+    const userId = req.userId
     if (core.canUserAction(userId, 'read', 'office')) {
-        const office = await core.getOffice(id)
-        return res.status(200).json(office)
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('office', query),
+            record = response.records[0]
+
+        return res.status(200).json(record)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.put('/offices/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван PUT-метод /offices. Запрос /offices/:id с параметрами: ', req.body);
-    const id = req.params.id,
-        userId = req.userId,
-        dataNew = req.body
-
-    if (core.canUserAction(userId, 'getList', 'office')) {
-        const user = await core.updateOffice(id, dataNew)
-        return res.status(200).json({
-            'id': userId,
-            'procedure': 'updated',
-            'status': 'updated'
-        })
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'offices')) {
+        const query = JSON.stringify({
+            'fields': JSON.stringify(req.body)
+        }),
+            response = await DBase.update('office', query)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.post('/create-office', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Поступил POST запрос на создание офиса: ', req.body);
     const userId = req.userId
 
@@ -558,27 +592,38 @@ app.post('/create-office', verifyToken, async (req, res) => {
 });
 
 app.get('/states', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /states с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'states')) {
-        const states = await core.getStatesList(),
-            range = states.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(states)
+        const requestQuery = req.query,
+            query = JSON.stringify(requestQuery),
+            response = await DBase.read('states', query),
+            range = requestQuery.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
 app.get('/roles', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /roles с параметрами: ', req.params);
-    const userId = req.userId,
-        roleQuery = req.query
+    const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'roles')) {
-        const states = await core.getRolesList(roleQuery),
-            range = states.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(states)
+        const roleQuery = req.query,
+            query = JSON.stringify(roleQuery),
+            response = await DBase.read('roles', query),
+            range = roleQuery.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -587,7 +632,7 @@ app.get('/roles', verifyToken, async (req, res) => {
 app.get('/timeframes', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /timeframes с параметрами: ', req.params);
     const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'roles')) {
+    if (core.canUserAction(userId, 'getList', 'timeframes')) {
         const timeframes = await core.getTimeFrames(),
             range = timeframes.length
         res.setHeader('content-range', range);
@@ -600,7 +645,7 @@ app.get('/timeframes', verifyToken, async (req, res) => {
 app.get('/periods', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /periods с параметрами: ', req.params);
     const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'roles')) {
+    if (core.canUserAction(userId, 'getList', 'periods')) {
         const periods = await core.getPeriods(),
             range = periods.length
         res.setHeader('content-range', range);

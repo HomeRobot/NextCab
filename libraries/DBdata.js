@@ -147,8 +147,7 @@ class Database {
 
   async read(table, query) {
     try {
-      const queryObj = JSON.parse(query),
-        { fields, excludeFields, filter: filterData, range: rangeData, sort: sortData } = queryObj,
+      const { fields, excludeFields, filter: filterData, range: rangeData, sort: sortData } = JSON.parse(query),
         countRows = await this.database.query(`SELECT COUNT(id) as total_rows FROM ${table}`),
         totalRows = countRows[0][0].total_rows
 
@@ -221,11 +220,7 @@ class Database {
         queryParams.push(limit, offset);
       }
 
-      // console.log('queryString', queryString)
-      // console.log('queryParams', queryParams)
-
       const response = await this.database.query(queryString, queryParams)
-
       returnObj['records'] = response[0]
 
       if (excludeFields) {
@@ -236,18 +231,61 @@ class Database {
         }
       }
 
-      // console.log('returnObj', returnObj)
-
       return returnObj
     } catch (error) {
       console.error('Error reading records:', error)
     }
   }
 
-  async update(table, id, data) {
+  async update(table, query) {
     try {
-      // Код для обновления записи
-      return `Record with id ${id} updated successfully`
+      const { fields: fieldsData, filter: filterData, range: rangeData } = JSON.parse(query),
+        countRows = await this.database.query(`SELECT COUNT(id) as total_rows FROM ${table}`),
+        totalRows = countRows[0][0].total_rows
+
+      let fields = fieldsData,
+        filter = filterData
+
+      if (totalRows === 0) {
+        const errorData = {
+          'errorType': 'noDataToUpdate'
+        }
+        throw new Error(JSON.stringify(errorData))
+      }
+      if (fieldsData === undefined || fieldsData === null) {
+        const errorData = {
+          'errorType': 'noDataInQuery'
+        }
+        throw new Error(JSON.stringify(errorData))
+      }
+
+      if (typeof fieldsData == 'string') {
+        fields = JSON.parse(fieldsData)
+      }
+      if (typeof filterData == 'string') {
+        filter = JSON.parse(filterData)
+      }
+
+      let targetId = 0
+      for (const key in fields) {
+        if (key == 'id') {
+          targetId = fields[key]
+        }
+      }
+
+      const dataToUpdate = fields,
+        queryString = `UPDATE ${table} SET ? WHERE id = ?`
+
+      delete dataToUpdate['id']
+
+      const response = await this.database.query(queryString, [dataToUpdate, targetId]),
+        returnObj = {
+          'id': targetId,
+          'procedure': 'update',
+          'status': 'true'
+        }
+
+      return returnObj
     } catch (error) {
       console.error('Error updating record:', error);
     }
