@@ -26,20 +26,7 @@ const db = mysql.createPool({
 })
 
 const dbp = db.promise()
-
 const DBase = new Database(dbp);
-
-/* Testing DBase */
-DBConnection = async () => {
-    const query = JSON.stringify({
-        'fields': ['id', 'username'],
-        'filter': '',
-        'range': '[0,10]',
-        'sort': '["id","DESC"]'
-    })
-    // await DBase.read('users', query);
-}
-DBConnection();
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
@@ -166,15 +153,18 @@ function verifyToken(req, res, next) {
     });
 }
 
+
+// USERS ENDPOINTS
+
 app.get('/users', verifyToken, async (req, res) => {
-    // console.log('Вызван GET-метод. Запрос /users с параметрами ЫЫЫЫ: ', req);
+    // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван GET-метод. Запрос /users с запросом: ', req.query);
-    const userId = req.userId,
-        requestQuery = req.query
+    const userId = req.userId
 
     if (core.canUserAction(userId, 'getList', 'users')) {
         const queryFields = 'id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state',
-            queryFieldsArr = queryFields.split(', ')
+            queryFieldsArr = queryFields.split(', '),
+            requestQuery = req.query
 
         requestQuery['fields'] = queryFieldsArr
         const query = JSON.stringify(requestQuery),
@@ -209,6 +199,18 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     }
 })
 
+/* app.get('/user', verifyToken, (req, res) => {
+    console.log('Вызван GET-метод. Запрос /user с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'users')) {
+        const user = core.getUser(userId)
+        console.log(user)
+        return res.status(200).json(JSON.stringify(user))
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+}) */
+
 app.put('/users/:id', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван PUT-метод /users. Запрос /users/:id с параметрами: ', req.body);
@@ -219,18 +221,6 @@ app.put('/users/:id', verifyToken, async (req, res) => {
         }),
             response = await DBase.update('users', query)
         return res.status(200).json(response)
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-})
-
-app.get('/user', verifyToken, (req, res) => {
-    console.log('Вызван GET-метод. Запрос /user с параметрами: ', req.params);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'read', 'users')) {
-        const user = core.getUser(userId)
-        console.log(user)
-        return res.status(200).json(JSON.stringify(user))
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -277,6 +267,8 @@ app.post('/create-user', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+
+// EXCHANGES ENDPOINTS
 
 app.get('/exchanges', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
@@ -437,6 +429,21 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
         }
 
         return res.status(200).json(record)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.put('/bots/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван PUT-метод /bots. Запрос /bots/:id с параметрами: ', req.body);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'bots')) {
+        const query = JSON.stringify({
+            'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
+        }),
+            response = await DBase.update('bots', query)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
