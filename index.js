@@ -153,12 +153,36 @@ function verifyToken(req, res, next) {
     });
 }
 
+app.get('/me', verifyToken, (req, res) => {
+    const userId = req.userId;
+
+    db.query('SELECT id, username, firstName, lastName, avatar, email, telegram, lastVisit, registrationDate, role FROM users WHERE id = ?', [userId], (err, results) => {
+        if (err) {
+            console.error('Ошибка при запросе к базе данных:', err);
+            return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ error: 'Пользователь не найден' });
+        }
+
+        const user = results[0];
+        return res.json(user);
+    });
+});
+
+app.get('/getPermissions', verifyToken, (req, res) => {
+    return res.json(RBAC.roles)
+})
+
+
+
+
 
 // USERS ENDPOINTS
-
 app.get('/users', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /users с запросом: ', req.query);
+    console.log('Вызван GET-метод. Запрос /users: ', req.query);
     const userId = req.userId
 
     if (core.canUserAction(userId, 'getList', 'users')) {
@@ -216,11 +240,31 @@ app.put('/users/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /users. Запрос /users/:id с параметрами: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'users')) {
-        const query = JSON.stringify({
-            'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
-        }),
-            response = await DBase.update('users', query)
-        return res.status(200).json(response)
+        const password = req.body.password,
+            saltRounds = 10
+        if (password) {
+            try {
+                const passHash = await bcrypt.hash(password, saltRounds),
+                    queryFieldsWithHashedPassword = req.body
+
+                queryFieldsWithHashedPassword['password'] = passHash
+                const query = JSON.stringify({
+                    'fields': helper.formatDatesInObject(queryFieldsWithHashedPassword, 'YYYY-MM-DD HH:mm:ss')
+                }),
+                    response = await DBase.update('users', query)
+                return res.status(200).json(response)
+            } catch (error) {
+                return res.status(500).json({
+                    error: error.message
+                })
+            }
+        } else {
+            const query = JSON.stringify({
+                'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
+            }),
+                response = await DBase.update('users', query)
+            return res.status(200).json(response)
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -250,29 +294,30 @@ app.post('/create-user', verifyToken, async (req, res) => {
                 return res.status(201).json({
                     id: responseData[0].insertId,
                     message: responseText
-                });
+                })
             }
             if (responseResult == 'error') {
                 return res.status(500).json({
                     error: responseText,
                     errorData: responseData
-                });
+                })
             }
         } catch (error) {
             return res.status(500).json({
                 error: error.message
-            });
+            })
         }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
+
 
 // EXCHANGES ENDPOINTS
-
 app.get('/exchanges', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /exchanges с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /exchanges: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'exchange')) {
         const requestQuery = req.query,
@@ -291,7 +336,7 @@ app.get('/exchanges', verifyToken, async (req, res) => {
 
 app.get('/exchange', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /exchange с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /exchange: ', req.query);
     const userId = req.userId
 
     if (core.canUserAction(userId, '', 'exchange')) {
@@ -384,10 +429,111 @@ app.put('/exchanges/:id', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
+
+// OFFICES ENDPOINTS
+app.get('/office', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /office с параметрами: ', req.params);
+    const filter = JSON.parse(req.query.filter)
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'offices')) {
+        const office = await core.getOffice(filter.id),
+            range = office.length
+        res.setHeader('content-range', range);
+        return res.status(200).json(office)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/offices', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /offices: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'office')) {
+        const requestQuery = req.query,
+            query = JSON.stringify(requestQuery),
+            response = await DBase.read('office', query),
+            range = requestQuery.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/offices/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /officess/:id с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'office')) {
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('office', query),
+            record = response.records[0]
+
+        return res.status(200).json(record)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.put('/offices/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван PUT-метод /offices. Запрос /offices/:id с параметрами: ', req.body);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'offices')) {
+        const query = JSON.stringify({
+            'fields': JSON.stringify(req.body)
+        }),
+            response = await DBase.update('office', query)
+        return res.status(200).json(response)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.post('/create-office', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Поступил POST запрос на создание офиса: ', req.body);
+    const userId = req.userId
+
+    if (core.canUserAction(userId, 'create', 'office')) {
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(req.body),
+            'requiredFields': ['title', 'address', 'phone', 'state'],
+            'uniqueFields': ['title', 'address', 'phone']
+        })
+
+        const response = JSON.parse(await DBase.create('office', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
+
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
+        }
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+});
+// ---
+
+
+// BOTS ENDPOINTS
 app.get('/bots', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /bots с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /bots: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bots')) {
         const requestQuery = req.query,
@@ -480,51 +626,17 @@ app.post('/create-bot', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 });
+// ---
 
-app.get('/me', verifyToken, (req, res) => {
-    const userId = req.userId;
 
-    db.query('SELECT id, username, firstName, lastName, avatar, email, telegram, lastVisit, registrationDate, role FROM users WHERE id = ?', [userId], (err, results) => {
-        if (err) {
-            console.error('Ошибка при запросе к базе данных:', err);
-            return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
-        }
-
-        if (results.length === 0) {
-            return res.status(404).json({ error: 'Пользователь не найден' });
-        }
-
-        const user = results[0];
-        return res.json(user);
-    });
-});
-
-app.get('/getPermissions', verifyToken, (req, res) => {
-    return res.json(RBAC.roles)
-})
-
-app.get('/office', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /office с параметрами: ', req.params);
-    const filter = JSON.parse(req.query.filter)
+// PAIRS ENDPOINTS
+app.get('/pairs', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /pairs: ', req.query);
     const userId = req.userId
-    if (core.canUserAction(userId, 'read', 'offices')) {
-        const office = await core.getOffice(filter.id),
-            range = office.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(office)
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-})
-
-app.get('/offices', verifyToken, async (req, res) => {
-    // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /offices с параметрами: ', req.params);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'office')) {
-        const requestQuery = req.query,
-            query = JSON.stringify(requestQuery),
-            response = await DBase.read('office', query),
+    if (core.canUserAction(userId, 'getList', 'pairs')) {
+        const requestQuery = req.query
+        const query = JSON.stringify(requestQuery),
+            response = await DBase.read('pairs', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
@@ -536,13 +648,13 @@ app.get('/offices', verifyToken, async (req, res) => {
     }
 })
 
-app.get('/offices/:id', verifyToken, async (req, res) => {
+app.get('/pairs/:id', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /officess/:id с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /pairs/:id с параметрами: ', req.params);
     const userId = req.userId
-    if (core.canUserAction(userId, 'read', 'office')) {
+    if (core.canUserAction(userId, 'read', 'pairs')) {
         const query = JSON.stringify({ filter: req.params }),
-            response = await DBase.read('office', query),
+            response = await DBase.read('pairs', query),
             record = response.records[0]
 
         return res.status(200).json(record)
@@ -550,57 +662,13 @@ app.get('/offices/:id', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
-app.put('/offices/:id', verifyToken, async (req, res) => {
-    // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван PUT-метод /offices. Запрос /offices/:id с параметрами: ', req.body);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'update', 'offices')) {
-        const query = JSON.stringify({
-            'fields': JSON.stringify(req.body)
-        }),
-            response = await DBase.update('office', query)
-        return res.status(200).json(response)
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-})
 
-app.post('/create-office', verifyToken, async (req, res) => {
-    // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Поступил POST запрос на создание офиса: ', req.body);
-    const userId = req.userId
-
-    if (core.canUserAction(userId, 'create', 'office')) {
-        const query = JSON.stringify({
-            'queryFields': JSON.stringify(req.body),
-            'requiredFields': ['title', 'address', 'phone', 'state'],
-            'uniqueFields': ['title', 'address', 'phone']
-        })
-
-        const response = JSON.parse(await DBase.create('office', query)),
-            { result: responseResult, resultText: responseText, resultData: responseData } = response
-
-        if (responseResult == 'success') {
-            return res.status(201).json({
-                id: responseData[0].insertId,
-                message: responseText
-            });
-        }
-        if (responseResult == 'error') {
-            return res.status(500).json({
-                error: responseText,
-                errorData: responseData
-            });
-        }
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-});
-
+// STATES ENDPOINTS
 app.get('/states', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /states с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /states: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'states')) {
         const requestQuery = req.query,
@@ -616,10 +684,13 @@ app.get('/states', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
+
+// ROLES ENDPOINTS
 app.get('/roles', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван GET-метод. Запрос /roles с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /roles: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'roles')) {
         const roleQuery = req.query,
@@ -635,32 +706,74 @@ app.get('/roles', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
+
+// TIMEFRAMES ENDPOINTS
 app.get('/timeframes', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /timeframes с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /timeframes: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'timeframes')) {
-        const timeframes = await core.getTimeFrames(),
-            range = timeframes.length
-        res.setHeader('content-range', range);
-        return res.status(200).json(timeframes)
+        const query = JSON.stringify(req.query),
+            response = await DBase.read('timeframes', query),
+            range = query.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
+
+// PERIODS ENDPOINTS
 app.get('/periods', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /periods с параметрами: ', req.params);
+    console.log('Вызван GET-метод. Запрос /periods: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'periods')) {
-        const periods = await core.getPeriods(),
+        const query = JSON.stringify(req.query),
+            response = await DBase.read('periods', query),
+            range = query.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+        /* const periods = await core.getPeriods(),
             range = periods.length
         res.setHeader('content-range', range);
-        return res.status(200).json(periods)
+        return res.status(200).json(periods) */
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
+
+
+// STRATEGIES ENDPOINTS
+app.get('/strategies', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /strategies: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'strategies')) {
+        const roleQuery = req.query,
+            query = JSON.stringify(roleQuery),
+            response = await DBase.read('strategies', query),
+            range = roleQuery.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+// ---
+
 
 const port = 3003;
 app.listen(port, () => {

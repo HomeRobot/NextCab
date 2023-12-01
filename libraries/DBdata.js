@@ -194,15 +194,23 @@ class Database {
         const whereClauses = [];
 
         for (const key in filter) {
-          const filterValue = filter[key];
+          const filterKey = key,
+            filterValue = filter[key]
 
-          if (Array.isArray(filterValue)) {
-            const placeholders = Array.from({ length: filterValue.length }, () => '?');
-            whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
-            queryParams.push(...filterValue);
+          if (filterKey.includes(`_like`)) {
+            const realKey = filterKey.replace('_like', '')
+            whereClauses.push(`${realKey} LIKE ?`)
+            queryParams.push(`%${filterValue}%`)
           } else {
-            whereClauses.push(`${key} = ?`);
-            queryParams.push(filterValue);
+            if (Array.isArray(filterValue)) {
+              const placeholders = Array.from({ length: filterValue.length }, () => '?');
+              whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+              queryParams.push(...filterValue);
+            } else {
+              whereClauses.push(`${key} = ?`);
+              queryParams.push(filterValue);
+            }
+
           }
         }
 
