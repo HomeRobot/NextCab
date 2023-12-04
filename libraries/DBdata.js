@@ -104,7 +104,7 @@ class Database {
 
       let queryString = `INSERT INTO ${table} SET ?`
 
-      console.log('queryString: ', queryString)
+      // console.log('queryString: ', queryString)
 
       const response = await this.database.query(queryString, queryFields)
 
@@ -112,8 +112,8 @@ class Database {
 
       return JSON.stringify(returnObj)
     } catch (error) {
-      //console.log('catch error : ', error)
-      //console.log('catch typeof error : ', typeof error)
+      // console.log('catch error : ', error)
+      // console.log('catch typeof error : ', typeof error)
 
       returnObj.result = 'error'
       returnObj.resultText = 'Error creating record'

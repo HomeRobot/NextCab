@@ -662,6 +662,39 @@ app.get('/pairs/:id', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+
+app.post('/create-pair', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Поступил POST запрос на создание пары: ', req.body);
+    const userId = req.userId
+
+    if (core.canUserAction(userId, 'create', 'pair')) {
+        const reqObject = req.body
+            reqObject['created_by'] = userId
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(reqObject),
+            'requiredFields': ['symbol', 'bot_id', 'state'],
+            'uniqueFields': []
+        }),
+            response = JSON.parse(await DBase.create('pairs', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
+
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
+        }
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+});
 // ---
 
 
