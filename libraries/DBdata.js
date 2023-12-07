@@ -227,7 +227,8 @@ class Database {
         queryString += ` LIMIT ${limit} OFFSET ${offset}`;
         queryParams.push(limit, offset);
       }
-
+console.log('queryString: ', queryString)
+console.log('queryParams: ', queryParams)
       const response = await this.database.query(queryString, queryParams)
       returnObj['records'] = response[0]
 

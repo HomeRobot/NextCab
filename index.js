@@ -634,15 +634,45 @@ app.get('/pairs', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /pairs: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'pairs')) {
-        const requestQuery = req.query
-        const query = JSON.stringify(requestQuery),
-            response = await DBase.read('pairs', query),
+        const requestQuery = req.query,
+            filterParsed = JSON.parse(requestQuery.filter),
             range = requestQuery.range,
-            records = response.records,
-            totalRows = response.totalRows
+            requestExchangeId = filterParsed.exchange_id,
+            requestBotId = filterParsed.bot_id
+        if (requestExchangeId) {
+            const botsQuery = {
+                filter: { exchange_id: requestExchangeId }
+            },
+                excludeFields = 'apikey, apisecret, apipassword',
+                excludeFieldsArr = excludeFields.split(', ')
 
-        res.setHeader('content-range', `${range}/${totalRows}`);
-        return res.status(200).json(records)
+            botsQuery['excludeFields'] = excludeFieldsArr
+
+            const botsByExchangeId = await DBase.read('bots', JSON.stringify(botsQuery)),
+                bots = botsByExchangeId.records
+            if (bots.length > 0) {
+                const botIdsArrayByExchangeId = bots.map(bot => bot.id),
+                    pairsQuery = {
+                        filter: { bot_id: botIdsArrayByExchangeId }
+                    },
+                    response = await DBase.read('pairs', JSON.stringify(pairsQuery))
+                // console.log('botsByExchangeId: ', botsByExchangeId);
+                console.log('range: ', range);
+                records = response.records,
+                totalRows = response.totalRows
+
+                res.setHeader('content-range', `${range}/${totalRows}`);
+                return res.status(200).json(records)
+            }
+        } else {
+            const query = JSON.stringify(requestQuery),
+                response = await DBase.read('pairs', query),
+                records = response.records,
+                totalRows = response.totalRows
+
+            res.setHeader('content-range', `${range}/${totalRows}`);
+            return res.status(200).json(records)
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -670,7 +700,7 @@ app.post('/create-pair', verifyToken, async (req, res) => {
 
     if (core.canUserAction(userId, 'create', 'pair')) {
         const reqObject = req.body
-            reqObject['created_by'] = userId
+        reqObject['created_by'] = userId
         const query = JSON.stringify({
             'queryFields': JSON.stringify(reqObject),
             'requiredFields': ['symbol', 'bot_id', 'state'],
