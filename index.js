@@ -1,6 +1,8 @@
 // import text from './constants.json'
 
 const express = require('express')
+const https = require('https');
+const fs = require('fs');
 const cors = require('cors')
 const bodyParser = require('body-parser')
 const bcrypt = require('bcrypt')
@@ -13,9 +15,20 @@ const helper = require('./helper')
 const Database = require('./libraries/DBdata')
 
 const app = express();
+
+// Загрузка сертификата и ключа
+const options = {
+    key: fs.readFileSync(config.SSL_KEY_PATH),
+    cert: fs.readFileSync(config.SSL_CERT_PATH),
+};
+
 app.use(bodyParser.json());
 // Включение CORS для всех маршрутов
-app.use(cors({ exposedHeaders: ['content-range'] }));
+app.use(cors({
+    origin: config.ALLOWED_ORIGINS,
+    exposedHeaders: ['content-range'],
+    methods: ['GET', 'POST', 'PUT'],
+}));
 
 // Подключение к базе данных MySQL
 const db = mysql.createPool({
@@ -27,6 +40,15 @@ const db = mysql.createPool({
 
 const dbp = db.promise()
 const DBase = new Database(dbp);
+
+// Установка MIME типа для всех файлов с определенным расширением
+app.use('/', express.static('public', {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.tsx')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+    },
+}));
 
 // Маршруты для создания пользователя и авторизации
 app.post('/register', (req, res) => {
@@ -93,6 +115,7 @@ app.post('/login', (req, res) => {
 
             console.log('Токен: ' + token);
 
+            // res.setHeader('Content-Type', 'application/javascript');
             return res.status(200).json({
                 "token": token,
                 "permissions": userPermissions,
@@ -107,6 +130,7 @@ app.post('/login', (req, res) => {
 app.post('/logout', (req, res) => {
     console.log('Поступил запрос на выход: ', req.body);
     const { username, userId } = req.body;
+    // res.header('Access-Control-Allow-Origin', allowedOrigins);
     return res.status(200).json({
         'action': 'logout',
         'status': 'ok'
@@ -249,7 +273,8 @@ app.put('/users/:id', verifyToken, async (req, res) => {
 
                 queryFieldsWithHashedPassword['password'] = passHash
                 const query = JSON.stringify({
-                    'fields': helper.formatDatesInObject(queryFieldsWithHashedPassword, 'YYYY-MM-DD HH:mm:ss')
+                    'fields': helper.formatDatesInObject(queryFieldsWithHashedPassword, 'YYYY-MM-DD HH:mm:ss'),
+                    'uniqueFields': ['username', 'email']
                 }),
                     response = await DBase.update('users', query)
                 return res.status(200).json(response)
@@ -260,7 +285,8 @@ app.put('/users/:id', verifyToken, async (req, res) => {
             }
         } else {
             const query = JSON.stringify({
-                'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
+                'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss'),
+                'uniqueFields': ['username', 'email']
             }),
                 response = await DBase.update('users', query)
             return res.status(200).json(response)
@@ -659,7 +685,7 @@ app.get('/pairs', verifyToken, async (req, res) => {
                 // console.log('botsByExchangeId: ', botsByExchangeId);
                 console.log('range: ', range);
                 records = response.records,
-                totalRows = response.totalRows
+                    totalRows = response.totalRows
 
                 res.setHeader('content-range', `${range}/${totalRows}`);
                 return res.status(200).json(records)
@@ -839,6 +865,6 @@ app.get('/strategies', verifyToken, async (req, res) => {
 
 
 const port = 3003;
-app.listen(port, () => {
-    console.log(`Сервер запущен на порте ${port}`);
+https.createServer(options, app).listen(port, () => {
+    console.log(`Сервер запущен на порту ${port}`);
 });
