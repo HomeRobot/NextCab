@@ -12,7 +12,7 @@ const db = mysql.createPool({
 const dbp = db.promise()
 
 async function getUserRole(userId) {
-    const [results] = await dbp.query('SELECT role FROM users WHERE id = ?', [userId])
+    const [results] = await dbp.query('SELECT role FROM eielu_users WHERE id = ?', [userId])
     return results[0].role
 }
 
@@ -33,7 +33,7 @@ async function canUserAction(userId, action, resource) {
 }
 
 async function getUserList(query) {
-    let queryString = 'SELECT COUNT(*) as count FROM users',
+    let queryString = 'SELECT COUNT(*) as count FROM eielu_users',
         queryParams = [];
     const usersTotal = await dbp.query(queryString, queryParams);
 
@@ -42,7 +42,7 @@ async function getUserList(query) {
     let filterObject = JSON.parse(filter),
         rangeArr = JSON.parse(range),
         sortArr = JSON.parse(sort);
-    queryString = 'SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users',
+    queryString = 'SELECT id, username, role, name, firstName, lastName, email, telegram, ip, lastvisitDate, registerDate, officeId, state FROM eielu_users',
         queryParams = [],
 
     console.log('range', range)
@@ -131,7 +131,7 @@ async function getOfficesList(query) {
 }
 
 async function getUser(userId) {
-    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state FROM users WHERE id in (?)', [userId])
+    const [user] = await dbp.query('SELECT id, username, role, firstName, lastName, email, telegram, ip, lastvisitDate, registerDate, officeId, state FROM eielu_users WHERE id in (?)', [userId])
 
     console.log('Это получили из БД', user)
 
@@ -145,7 +145,7 @@ async function getUser(userId) {
 }
 
 async function updateUser(userId, data) {
-    const [user] = await dbp.query('UPDATE users SET ? WHERE id = ?', [data, userId])
+    const [user] = await dbp.query('UPDATE eielu_users SET ? WHERE id = ?', [data, userId])
     return user
 }
 
