@@ -67,8 +67,8 @@ app.post('/register', (req, res) => {
             return res.status(500).json({ error: 'Password hash error' });
         }
 
-        const user = { username, password: hash, email, role: 'client' };
-        db.query('INSERT INTO users SET ?', user, (err, result) => {
+        const user = { username, password: hash, email, role: 3 };
+        db.query('INSERT INTO eielu_users SET ?', user, (err, result) => {
             if (err) {
                 console.error('Ошибка при создании пользователя:', err);
                 return res.status(500).json({ error: 'Error while creating user' });
@@ -89,7 +89,7 @@ app.post('/login', (req, res) => {
         return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
     }
 
-    db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
+    db.query('SELECT * FROM eielu_users WHERE username = ?', [username], (err, results) => {
         if (err) {
             console.error('Ошибка при запросе к базе данных:', err);
             return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
@@ -102,6 +102,11 @@ app.post('/login', (req, res) => {
         const user = results[0];
         bcrypt.compare(password, user.password, (bcryptErr, bcryptResult) => {
             if (bcryptErr || !bcryptResult) {
+                console.log('bcryptResult' , bcryptResult);
+                console.log('bcryptErr' , bcryptErr);
+                console.log('user' , user);
+                console.log('password' , password);
+                console.log('user.password' , user.password);
                 return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
             }
             const userRole = user.role,
@@ -180,7 +185,7 @@ function verifyToken(req, res, next) {
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;
 
-    db.query('SELECT id, username, firstName, lastName, avatar, email, telegram, lastVisit, registrationDate, role FROM users WHERE id = ?', [userId], (err, results) => {
+    db.query('SELECT id, username, firstName, lastName, avatar, email, telegram, lastvisitDateDate, registerDate, role FROM eielu_users WHERE id = ?', [userId], (err, results) => {
         if (err) {
             console.error('Ошибка при запросе к базе данных:', err);
             return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
@@ -210,13 +215,13 @@ app.get('/users', verifyToken, async (req, res) => {
     const userId = req.userId
 
     if (core.canUserAction(userId, 'getList', 'users')) {
-        const queryFields = 'id, username, role, firstName, lastName, email, telegram, ip, lastVisit, registrationDate, officeId, state',
+        const queryFields = 'id, username, role, firstName, lastName, email, telegram, ip, lastvisitDate, registerDate, officeId, state',
             queryFieldsArr = queryFields.split(', '),
             requestQuery = req.query
 
         requestQuery['fields'] = queryFieldsArr
         const query = JSON.stringify(requestQuery),
-            response = await DBase.read('users', query),
+            response = await DBase.read('eielu_users', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
@@ -234,7 +239,7 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'users')) {
         const query = JSON.stringify({ filter: req.params }),
-            response = await DBase.read('users', query),
+            response = await DBase.read('eielu_users', query),
             record = response.records[0]
 
         if ('password' in record) {
@@ -276,7 +281,7 @@ app.put('/users/:id', verifyToken, async (req, res) => {
                     'fields': helper.formatDatesInObject(queryFieldsWithHashedPassword, 'YYYY-MM-DD HH:mm:ss'),
                     'uniqueFields': ['username', 'email']
                 }),
-                    response = await DBase.update('users', query)
+                    response = await DBase.update('eielu_users', query)
                 return res.status(200).json(response)
             } catch (error) {
                 return res.status(500).json({
@@ -288,7 +293,7 @@ app.put('/users/:id', verifyToken, async (req, res) => {
                 'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss'),
                 'uniqueFields': ['username', 'email']
             }),
-                response = await DBase.update('users', query)
+                response = await DBase.update('eielu_users', query)
             return res.status(200).json(response)
         }
     } else {
@@ -314,7 +319,7 @@ app.post('/create-user', verifyToken, async (req, res) => {
                 'requiredFields': ['username', 'password', 'firstName', 'lastName', 'email', 'telegram', 'role', 'officeId', 'state'],
                 'uniqueFields': ['username', 'email']
             }),
-                response = JSON.parse(await DBase.create('users', query)),
+                response = JSON.parse(await DBase.create('eielu_users', query)),
                 { result: responseResult, resultText: responseText, resultData: responseData } = response
             if (responseResult == 'success') {
                 return res.status(201).json({
@@ -563,16 +568,29 @@ app.get('/bots', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bots')) {
         const requestQuery = req.query,
-            excludeFields = 'apikey, apisecret, apipassword',
-            excludeFieldsArr = excludeFields.split(', ')
-
-        requestQuery['excludeFields'] = excludeFieldsArr
-
-        const query = JSON.stringify(requestQuery),
-            response = await DBase.read('bots', query),
+            query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_bot', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
+
+        records.forEach((record) => {
+            if (record.apikey && record.apikey.trim().length > 0 && record.apisecret && record.apisecret.trim().length > 0) {
+                record.api_ready = 1
+            } else {
+                record.api_ready = 0
+            }
+
+            if ('apikey' in record) {
+                delete record.apikey
+            }
+            if ('apisecret' in record) {
+                delete record.apisecret
+            }
+            if ('apipassword' in record) {
+                delete record.apipassword
+            }
+        })
 
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
@@ -587,8 +605,14 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'bots')) {
         const query = JSON.stringify({ filter: req.params }),
-            response = await DBase.read('bots', query),
+            response = await DBase.read('eielu_bot_bot', query),
             record = response.records[0]
+
+        if ('apikey' in record && 'apisecret' in record) {
+            record.api_ready = 1
+        } else {
+            record.api_ready = 0
+        }
 
         if ('apikey' in record) {
             delete record.apikey
@@ -614,7 +638,7 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
         const query = JSON.stringify({
             'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
         }),
-            response = await DBase.update('bots', query)
+            response = await DBase.update('eielu_bot_bot', query)
         return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -633,7 +657,7 @@ app.post('/create-bot', verifyToken, async (req, res) => {
             'uniqueFields': ['title']
         })
 
-        const response = JSON.parse(await DBase.create('bots', query)),
+        const response = JSON.parse(await DBase.create('eielu_bot_bot', query)),
             { result: responseResult, resultText: responseText, resultData: responseData } = response
 
         if (responseResult == 'success') {
@@ -674,14 +698,14 @@ app.get('/pairs', verifyToken, async (req, res) => {
 
             botsQuery['excludeFields'] = excludeFieldsArr
 
-            const botsByExchangeId = await DBase.read('bots', JSON.stringify(botsQuery)),
+            const botsByExchangeId = await DBase.read('eielu_bot_bot', JSON.stringify(botsQuery)),
                 bots = botsByExchangeId.records
             if (bots.length > 0) {
                 const botIdsArrayByExchangeId = bots.map(bot => bot.id),
                     pairsQuery = {
                         filter: { bot_id: botIdsArrayByExchangeId }
                     },
-                    response = await DBase.read('pairs', JSON.stringify(pairsQuery))
+                    response = await DBase.read('eielu_bot_pair', JSON.stringify(pairsQuery))
                 // console.log('botsByExchangeId: ', botsByExchangeId);
                 console.log('range: ', range);
                 records = response.records,
@@ -692,7 +716,7 @@ app.get('/pairs', verifyToken, async (req, res) => {
             }
         } else {
             const query = JSON.stringify(requestQuery),
-                response = await DBase.read('pairs', query),
+                response = await DBase.read('eielu_bot_pair', query),
                 records = response.records,
                 totalRows = response.totalRows
 
@@ -710,7 +734,7 @@ app.get('/pairs/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'pairs')) {
         const query = JSON.stringify({ filter: req.params }),
-            response = await DBase.read('pairs', query),
+            response = await DBase.read('eielu_bot_pair', query),
             record = response.records[0]
 
         return res.status(200).json(record)
@@ -732,7 +756,7 @@ app.post('/create-pair', verifyToken, async (req, res) => {
             'requiredFields': ['symbol', 'bot_id', 'state'],
             'uniqueFields': []
         }),
-            response = JSON.parse(await DBase.create('pairs', query)),
+            response = JSON.parse(await DBase.create('eielu_bot_pair', query)),
             { result: responseResult, resultText: responseText, resultData: responseData } = response
 
         if (responseResult == 'success') {
