@@ -568,16 +568,29 @@ app.get('/bots', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'bots')) {
         const requestQuery = req.query,
-            excludeFields = 'apikey, apisecret, apipassword',
-            excludeFieldsArr = excludeFields.split(', ')
-
-        requestQuery['excludeFields'] = excludeFieldsArr
-
-        const query = JSON.stringify(requestQuery),
+            query = JSON.stringify(requestQuery),
             response = await DBase.read('eielu_bot_bot', query),
             range = requestQuery.range,
             records = response.records,
             totalRows = response.totalRows
+
+        records.forEach((record) => {
+            if (record.apikey && record.apikey.trim().length > 0 && record.apisecret && record.apisecret.trim().length > 0) {
+                record.api_ready = 1
+            } else {
+                record.api_ready = 0
+            }
+
+            if ('apikey' in record) {
+                delete record.apikey
+            }
+            if ('apisecret' in record) {
+                delete record.apisecret
+            }
+            if ('apipassword' in record) {
+                delete record.apipassword
+            }
+        })
 
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
@@ -594,6 +607,12 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
         const query = JSON.stringify({ filter: req.params }),
             response = await DBase.read('eielu_bot_bot', query),
             record = response.records[0]
+
+        if ('apikey' in record && 'apisecret' in record) {
+            record.api_ready = 1
+        } else {
+            record.api_ready = 0
+        }
 
         if ('apikey' in record) {
             delete record.apikey
