@@ -888,6 +888,27 @@ app.get('/strategies', verifyToken, async (req, res) => {
 // ---
 
 
+
+// BOT GRID ENDPOINTS
+app.get('/botgrid', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /botgrid: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'botgrid')) {
+        const requestQuery = req.query,
+            range = requestQuery.range
+        const query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_grid', query),
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+
 const port = 3003;
 https.createServer(options, app).listen(port, () => {
     console.log(`Сервер запущен на порту ${port}`);
