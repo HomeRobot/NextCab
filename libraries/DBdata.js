@@ -104,24 +104,17 @@ class Database {
 
       let queryString = `INSERT INTO ${table} SET ?`
 
-      // console.log('queryString: ', queryString)
-
       const response = await this.database.query(queryString, queryFields)
 
       returnObj.resultData = response
 
       return JSON.stringify(returnObj)
     } catch (error) {
-      // console.log('catch error : ', error)
-      // console.log('catch typeof error : ', typeof error)
-
       returnObj.result = 'error'
       returnObj.resultText = 'Error creating record'
       returnObj.resultData = {
         'error': JSON.stringify(error)
       }
-
-      //console.log('catch error.message : ', error.message)
 
       if (!error.errno && isValidJSON(error.message)) {
         const errorData = JSON.parse(error.message),
@@ -147,7 +140,7 @@ class Database {
 
   async read(table, query) {
     try {
-      const { fields, excludeFields, filter: filterData, range: rangeData, sort: sortData } = JSON.parse(query),
+      const { fields, excludeFields, filter: filterData, range: rangeData, sort: sortData, expression: selectExpression } = JSON.parse(query),
         countRows = await this.database.query(`SELECT COUNT(id) as total_rows FROM ${table}`),
         totalRows = countRows[0][0].total_rows
 
@@ -160,10 +153,11 @@ class Database {
         return returnObj
       }
 
-      let fieldsString = '',
+      let selectString = '',
         filter = filterData,
         range = rangeData,
-        sort = sortData
+        sort = sortData,
+        expression = selectExpression
 
       if (typeof filterData == 'string') {
         filter = JSON.parse(filterData)
@@ -176,18 +170,26 @@ class Database {
       }
 
       if (fields) {
-        for (let i = 0; i < fields.length; i++) {
-          fieldsString += fields[i];
+        if (typeof expression == 'string') {
+          selectString = expression
+        } else {
+          for (let i = 0; i < fields.length; i++) {
+            selectString += fields[i];
 
-          if (i !== fields.length - 1) {
-            fieldsString += ', ';
+            if (i !== fields.length - 1) {
+              selectString += ', ';
+            }
           }
         }
       } else {
-        fieldsString = '*';
+        if (typeof expression == 'string') {
+          selectString = expression
+        } else {
+          selectString = '*';
+        }
       }
 
-      let queryString = `SELECT ${fieldsString} FROM ${table}`,
+      let queryString = `SELECT ${selectString} FROM ${table}`,
         queryParams = []
 
       if (Object.keys(filter).length > 0) {
@@ -227,10 +229,14 @@ class Database {
         queryString += ` LIMIT ${limit} OFFSET ${offset}`;
         queryParams.push(limit, offset);
       }
+
 console.log('queryString: ', queryString)
 console.log('queryParams: ', queryParams)
+
       const response = await this.database.query(queryString, queryParams)
       returnObj['records'] = response[0]
+
+// console.log('read response: ', response)
 
       if (excludeFields) {
         for (let i = 0; i < returnObj.records.length; i++) {
@@ -243,6 +249,7 @@ console.log('queryParams: ', queryParams)
       return returnObj
     } catch (error) {
       console.error('Error reading records:', error)
+      return 'Error reading records'
     }
   }
 

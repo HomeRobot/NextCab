@@ -888,7 +888,6 @@ app.get('/strategies', verifyToken, async (req, res) => {
 // ---
 
 
-
 // BOT GRID ENDPOINTS
 app.get('/botgrid', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /botgrid: ', req.query);
@@ -902,7 +901,60 @@ app.get('/botgrid', verifyToken, async (req, res) => {
             totalRows = response.totalRows
 
         res.setHeader('content-range', `${range}/${totalRows}`);
+        console.log('botgrid УСПЕШНО ЗАПРОШЕНЫ !!!');
         return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+
+app.get('/botgrid-by-bot/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /botgrid-by-bot: с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'botgrid')) {
+        const elId = parseInt(req.params.id),
+            response = {}
+
+        response.id = elId
+
+        const queryInTrades = JSON.stringify(
+            {
+                filter: {
+                    "bot_id": elId,
+                    "order_done": 1,
+                    "sell_done": 0
+                },
+                sort: '["id","ASC"]',
+                expression: 'sum(qty_usd) as inTrades'
+            }
+        )
+
+        inTradesResponse = await DBase.read('eielu_bot_grid', queryInTrades);
+        response.in_trades = inTradesResponse.records[0].inTrades
+
+        const queryProfit = JSON.stringify(
+            {
+                filter: {
+                    "bot_id": elId,
+                    "sell_done": 1
+                },
+                sort: '["id","ASC"]',
+                expression: 'sum(sell_qty * sell_price - price * qty) as profit'
+            }
+        )
+
+        profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
+        response.profit = profitResponse.records[0].profit
+
+        /* const query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_grid', query),
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        console.log('botgrid-by-bot УСПЕШНО ЗАПРОШЕН !'); */
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
