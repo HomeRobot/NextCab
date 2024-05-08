@@ -102,11 +102,11 @@ app.post('/login', (req, res) => {
         const user = results[0];
         bcrypt.compare(password, user.password, (bcryptErr, bcryptResult) => {
             if (bcryptErr || !bcryptResult) {
-                console.log('bcryptResult' , bcryptResult);
-                console.log('bcryptErr' , bcryptErr);
-                console.log('user' , user);
-                console.log('password' , password);
-                console.log('user.password' , user.password);
+                console.log('bcryptResult', bcryptResult);
+                console.log('bcryptErr', bcryptErr);
+                console.log('user', user);
+                console.log('password', password);
+                console.log('user.password', user.password);
                 return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
             }
             const userRole = user.role,
@@ -720,6 +720,52 @@ app.get('/pairs', verifyToken, async (req, res) => {
                 records = response.records,
                 totalRows = response.totalRows
 
+            const promises = records.map(async (record) => {
+                const queryOrdersOpened = JSON.stringify({
+                    filter: {
+                        "pair_id": record.id,
+                        "sell_done": 0
+                    },
+                    expression: 'sum(qty_usd) as ordersOpened'
+                });
+                const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
+
+                const inTradesQuery = JSON.stringify({
+                    filter: {
+                        "pair_id": record.id,
+                        "order_done": 1,
+                        "sell_done": 1
+                    },
+                    expression: 'sum(qty_usd) as inTrades'
+                });
+                const inTradesResponse = await DBase.read('eielu_bot_grid', inTradesQuery);
+
+                const queryProfit = JSON.stringify({
+                    filter: {
+                        "pair_id": record.id,
+                        "sell_done": 1
+                    },
+                    expression: 'sum(sell_qty * sell_price - price * qty) as profit'
+                })
+                const profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
+
+                return {
+                    id: record.id,
+                    ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
+                    inTrades: inTradesResponse.records[0].inTrades,
+                    profit: profitResponse.records[0].profit
+                };
+            });
+
+            const syntheticIndicators = await Promise.all(promises);
+
+            syntheticIndicators.forEach((result) => {
+                const record = records.find((record) => record.id === result.id);
+                record.ordersOpened = result.ordersOpened;
+                record.inTrades = result.inTrades;
+                record.profit = result.profit;
+            });
+
             res.setHeader('content-range', `${range}/${totalRows}`);
             return res.status(200).json(records)
         }
@@ -918,31 +964,27 @@ app.get('/botgrid-by-bot/:id', verifyToken, async (req, res) => {
 
         response.id = elId
 
-        const queryInTrades = JSON.stringify(
-            {
-                filter: {
-                    "bot_id": elId,
-                    "order_done": 1,
-                    "sell_done": 0
-                },
-                sort: '["id","ASC"]',
-                expression: 'sum(qty_usd) as inTrades'
-            }
-        )
+        const queryInTrades = JSON.stringify({
+            filter: {
+                "bot_id": elId,
+                "order_done": 1,
+                "sell_done": 0
+            },
+            sort: '["id","ASC"]',
+            expression: 'sum(qty_usd) as inTrades'
+        })
 
         inTradesResponse = await DBase.read('eielu_bot_grid', queryInTrades);
         response.in_trades = inTradesResponse.records[0].inTrades
 
-        const queryProfit = JSON.stringify(
-            {
-                filter: {
-                    "bot_id": elId,
-                    "sell_done": 1
-                },
-                sort: '["id","ASC"]',
-                expression: 'sum(sell_qty * sell_price - price * qty) as profit'
-            }
-        )
+        const queryProfit = JSON.stringify({
+            filter: {
+                "bot_id": elId,
+                "sell_done": 1
+            },
+            sort: '["id","ASC"]',
+            expression: 'sum(sell_qty * sell_price - price * qty) as profit'
+        })
 
         profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
         response.profit = profitResponse.records[0].profit
