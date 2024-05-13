@@ -635,11 +635,22 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /bots. Запрос /bots/:id с параметрами: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'bots')) {
-        const query = JSON.stringify({
-            'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss')
-        }),
-            response = await DBase.update('eielu_bot_bot', query)
-        return res.status(200).json(response)
+        if (req.body.api_ready == 1) {
+            const updQuery = { ...req.body }
+            delete updQuery.api_ready
+            delete updQuery.apikey
+            delete updQuery.apisecret
+            updQuery.checked_out_time = '0000-00-00 00:00:00'
+
+            const query = JSON.stringify({
+                'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
+            })
+
+            const response = await DBase.update('eielu_bot_bot', query)
+            return res.status(200).json(response)
+        } else {
+            return res.status(403).json({ error: 'API not ready' });
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }

@@ -8,8 +8,11 @@ function formatDatesInObject(obj, format) {
         const value = obj[key];
         if (typeof value === 'object') {
           traverse(value); // Рекурсивный вызов для вложенных объектов
-        } else if (moment(value, moment.ISO_8601).isValid()) {
+        } else if (typeof value === 'string' && moment(value, moment.ISO_8601).isValid()) {
           obj[key] = moment(value).format(format); // Форматирование даты
+        } else if (typeof value === 'number') {
+          // Пропускаем форматирование чисел
+          continue;
         }
       }
     }
