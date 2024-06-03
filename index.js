@@ -574,7 +574,7 @@ app.get('/bots', verifyToken, async (req, res) => {
             records = response.records,
             totalRows = response.totalRows
 
-        records.forEach((record) => {
+        /* records.forEach((record) => {
             if (record.apikey && record.apikey.trim().length > 0 && record.apisecret && record.apisecret.trim().length > 0) {
                 record.api_ready = 1
             } else {
@@ -590,7 +590,7 @@ app.get('/bots', verifyToken, async (req, res) => {
             if ('apipassword' in record) {
                 delete record.apipassword
             }
-        })
+        }) */
 
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
@@ -608,7 +608,7 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
             response = await DBase.read('eielu_bot_bot', query),
             record = response.records[0]
 
-        if ('apikey' in record && 'apisecret' in record) {
+        /* if ('apikey' in record && 'apisecret' in record) {
             record.api_ready = 1
         } else {
             record.api_ready = 0
@@ -622,7 +622,7 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
         }
         if ('apipassword' in record) {
             delete record.apipassword
-        }
+        } */
 
         return res.status(200).json(record)
     } else {
@@ -635,22 +635,18 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /bots. Запрос /bots/:id с параметрами: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'bots')) {
-        if (req.body.api_ready == 1) {
-            const updQuery = { ...req.body }
-            delete updQuery.api_ready
-            delete updQuery.apikey
-            delete updQuery.apisecret
-            updQuery.checked_out_time = '0000-00-00 00:00:00'
+        const updQuery = { ...req.body }
+        /* delete updQuery.api_ready
+        delete updQuery.apikey
+        delete updQuery.apisecret */
+        updQuery.checked_out_time = '0000-00-00 00:00:00'
 
-            const query = JSON.stringify({
-                'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
-            })
+        const query = JSON.stringify({
+            'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
+        })
 
-            const response = await DBase.update('eielu_bot_bot', query)
-            return res.status(200).json(response)
-        } else {
-            return res.status(403).json({ error: 'API not ready' });
-        }
+        const response = await DBase.update('eielu_bot_bot', query)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -958,7 +954,6 @@ app.get('/botgrid', verifyToken, async (req, res) => {
             totalRows = response.totalRows
 
         res.setHeader('content-range', `${range}/${totalRows}`);
-        console.log('botgrid УСПЕШНО ЗАПРОШЕНЫ !!!');
         return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -1000,19 +995,125 @@ app.get('/botgrid-by-bot/:id', verifyToken, async (req, res) => {
         profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
         response.profit = profitResponse.records[0].profit
 
-        /* const query = JSON.stringify(requestQuery),
-            response = await DBase.read('eielu_bot_grid', query),
-            records = response.records,
-            totalRows = response.totalRows
-
-        res.setHeader('content-range', `${range}/${totalRows}`);
-        console.log('botgrid-by-bot УСПЕШНО ЗАПРОШЕН !'); */
         return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
 
+
+app.get('/botgrid-by-pair/:id', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /botgrid-by-pair: с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'botgrid')) {
+        const elId = parseInt(req.params.id),
+            response = {}
+
+        response.id = elId
+
+        const queryInOrders = JSON.stringify({
+            filter: {
+                "pair_id": elId,
+                "order_done": 1,
+                "sell_done": 0
+            },
+            sort: '["id","ASC"]',
+            expression: 'sum(qty_usd) as inTrades'
+        })
+
+        inTradesResponse = await DBase.read('eielu_bot_grid', queryInOrders);
+        response.in_orders = inTradesResponse.records[0].inTrades
+
+        const queryPurchases = JSON.stringify({
+            filter: {
+                "pair_id": elId,
+                "order_done": 1,
+                "sell_done": 0
+            },
+            //sort: '["id","ASC"]',
+            expression: 'count(id) as purchases'
+        })
+
+        purchasesResponse = await DBase.read('eielu_bot_grid', queryPurchases);
+        response.purchases = purchasesResponse.records[0].purchases
+
+        const querySales = JSON.stringify({
+            filter: {
+                "pair_id": elId,
+                "order_done": 1,
+                "sell_done": 1
+            },
+            // sort: '["id","ASC"]',
+            expression: 'count(id) as sales'
+        })
+
+        salesResponse = await DBase.read('eielu_bot_grid', querySales);
+        response.sales = salesResponse.records[0].sales
+
+        return res.status(200).json(response)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+
+app.get('/orders/', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'botgrid')) {
+        const requestQuery = req.query,
+            range = requestQuery.range
+        const query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_grid', query),
+            records = response.records,
+            totalRows = response.totalRows
+
+        const fieldsToKeep = ['id', 'pair_id', 'price', 'qty', 'startOrder', 'sell_price', 'sell_qty', 'profit', 'order_done', 'sell_done', 'sellOrder'];
+        const recordsWithLimitedFields = records.map(record => {
+            const limitedRecord = {};
+            fieldsToKeep.forEach(field => {
+                if (field in record) {
+                    limitedRecord[field] = record[field];
+                }
+            });
+            return limitedRecord;
+        });
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(recordsWithLimitedFields)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/orders/', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'getList', 'botgrid')) {
+        const requestQuery = req.query,
+            range = requestQuery.range
+        const query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_grid', query),
+            records = response.records,
+            totalRows = response.totalRows
+
+        const fieldsToKeep = ['id', 'pair_id', 'price', 'qty', 'startOrder', 'sell_price', 'sell_qty', 'profit', 'order_done', 'sell_done', 'sellOrder'];
+        const recordsWithLimitedFields = records.map(record => {
+            const limitedRecord = {};
+            fieldsToKeep.forEach(field => {
+                if (field in record) {
+                    limitedRecord[field] = record[field];
+                }
+            });
+            return limitedRecord;
+        });
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(recordsWithLimitedFields)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
 
 const port = 3003;
 https.createServer(options, app).listen(port, () => {

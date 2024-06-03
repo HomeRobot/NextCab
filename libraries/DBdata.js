@@ -217,6 +217,7 @@ class Database {
         }
 
         queryString += ` WHERE ${whereClauses.join(' AND ')}`;
+        console.log('queryString with filter: ', queryString)
       }
 
       if (sort && sort.length === 2) {
