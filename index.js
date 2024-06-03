@@ -796,6 +796,28 @@ app.get('/pairs/:id', verifyToken, async (req, res) => {
     }
 })
 
+app.put('/pairs/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван PUT-метод /pairs. Запрос /pairs/:id с параметрами: ', req.body);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'pairs')) {
+        const updQuery = { ...req.body }
+        /* delete updQuery.api_ready
+        delete updQuery.apikey
+        delete updQuery.apisecret */
+        updQuery.checked_out_time = '0000-00-00 00:00:00'
+
+        const query = JSON.stringify({
+            'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
+        })
+
+        const response = await DBase.update('eielu_bot_pair', query)
+        return res.status(200).json(response)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
 app.post('/create-pair', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Поступил POST запрос на создание пары: ', req.body);
