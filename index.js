@@ -1086,7 +1086,7 @@ app.get('/orders/', verifyToken, async (req, res) => {
     }
 })
 
-app.get('/orders/', verifyToken, async (req, res) => {
+/* app.get('/orders/', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'botgrid')) {
@@ -1113,7 +1113,7 @@ app.get('/orders/', verifyToken, async (req, res) => {
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
-})
+}) */
 
 const port = 3003;
 https.createServer(options, app).listen(port, () => {
