@@ -231,13 +231,13 @@ class Database {
         queryParams.push(limit, offset);
       }
 
-console.log('queryString: ', queryString)
-console.log('queryParams: ', queryParams)
+      console.log('queryString: ', queryString)
+      console.log('queryParams: ', queryParams)
 
       const response = await this.database.query(queryString, queryParams)
       returnObj['records'] = response[0]
 
-// console.log('read response: ', response)
+      // console.log('read response: ', response)
 
       if (excludeFields) {
         for (let i = 0; i < returnObj.records.length; i++) {
@@ -290,21 +290,56 @@ console.log('queryParams: ', queryParams)
         }
       }
 
-      const dataToUpdate = fields,
-        queryString = `UPDATE ${table} SET ? WHERE id = ?`
+      const dataToUpdate = fields
+      let queryString = '',
+        queryParams = []
 
-      delete dataToUpdate['id']
+      if (typeof filter == 'object' && Object.keys(filter).length > 0) {
+        const whereClauses = [];
 
-      const response = await this.database.query(queryString, [dataToUpdate, targetId]),
-        returnObj = {
-          'id': targetId,
-          'procedure': 'update',
-          'status': 'true'
+        for (const key in filter) {
+          const filterKey = key,
+            filterValue = filter[key]
+
+          if (filterKey.includes(`_like`)) {
+            const realKey = filterKey.replace('_like', '')
+            whereClauses.push(`${realKey} LIKE ?`)
+            queryParams.push(`%${filterValue}%`)
+          } else {
+            if (Array.isArray(filterValue)) {
+              const placeholders = Array.from({ length: filterValue.length }, () => '?');
+              whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+              queryParams.push(...filterValue);
+            } else {
+              whereClauses.push(`${key} = ${filterValue}`);
+              queryParams.push(filterValue);
+            }
+
+          }
         }
+        queryString += `UPDATE ${table} SET ? WHERE ${whereClauses.join(' AND ')}`;
+        queryParams = [dataToUpdate]
+      } else {
+        queryString += `UPDATE ${table} SET ? WHERE id = ?`;
+        queryParams = [dataToUpdate, targetId]
+        delete dataToUpdate['id']
+      }
 
+      const response = await this.database.query(queryString, queryParams)
+
+      let status = true
+      if (response[0].serverStatus !== 2 && response[0].warningStatus !== 0) {
+        status = false
+      }
+      const returnObj = {
+        'id': targetId,
+        'procedure': 'update',
+        'status': status
+      }
       return returnObj
     } catch (error) {
       console.error('Error updating record:', error);
+      return error
     }
   }
 
