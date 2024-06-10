@@ -707,7 +707,7 @@ app.post('/create-bot', verifyToken, async (req, res) => {
 
 
 // PAIRS ENDPOINTS
-/* app.get('/pairs', verifyToken, async (req, res) => {
+app.get('/pairs', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /pairs: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'pairs')) {
@@ -720,122 +720,9 @@ app.post('/create-bot', verifyToken, async (req, res) => {
 
         delete filterParsedWithoutExchangeId.exchange_id
 
-        let query = {}
+        let filterWithExchangeOrBot = {}
 
-        console.log('filterParsed: ', filterParsed);
-        if (requestExchangeId) {
-            const botsQuery = {
-                filter: { exchange_id: requestExchangeId }
-            },
-                excludeFields = 'apikey, apisecret, apipassword',
-                excludeFieldsArr = excludeFields.split(', ')
-
-            botsQuery['excludeFields'] = excludeFieldsArr
-
-            const botsByExchangeId = await DBase.read('eielu_bot_bot', JSON.stringify(botsQuery)),
-                bots = botsByExchangeId.records,
-                checkBotInExchange = bots.some(bot => {
-                    bot.hasOwnProperty('id') && bot.id == requestBotId
-                })
-            console.log('bots check:', bots)
-            console.log('checkBotInExchange:', checkBotInExchange)
-
-c
-            if (requestBotId && checkBotInExchange) {
-                query = {
-
-                }
-            }
-
-            if (bots.length > 0) {
-                const botIdsArrayByExchangeId = bots.map(bot => bot.id)
-                if (requestBotId && checkBotInExchange) {
-                    query = {
-                        filter: { bot_id: botIdsArrayByExchangeId, ...filterParsedWithoutExchangeId },
-                        range: range
-                    }
-                } else {
-                    query = {
-                        filter: { bot_id: botIdsArrayByExchangeId, ...filterParsedWithoutExchangeId },
-                        range: range
-                    }
-                }
-            }
-            const response = await DBase.read('eielu_bot_pair', JSON.stringify(query)),
-                records = response.records,
-                totalRows = response.totalRows
-            res.setHeader('content-range', `${range}/${totalRows}`);
-            return res.status(200).json(records)
-        } else {
-            const query = JSON.stringify(requestQuery),
-                response = await DBase.read('eielu_bot_pair', query),
-                records = response.records,
-                totalRows = response.totalRows
-
-            const promises = records.map(async (record) => {
-                const queryOrdersOpened = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 0
-                    },
-                    expression: 'sum(qty_usd) as ordersOpened'
-                });
-                const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
-
-                const inTradesQuery = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "order_done": 1,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(qty_usd) as inTrades'
-                });
-                const inTradesResponse = await DBase.read('eielu_bot_grid', inTradesQuery);
-
-                const queryProfit = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(sell_qty * sell_price - price * qty) as profit'
-                })
-                const profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
-
-                return {
-                    id: record.id,
-                    ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
-                    inTrades: inTradesResponse.records[0].inTrades,
-                    profit: profitResponse.records[0].profit
-                };
-            });
-
-            const syntheticIndicators = await Promise.all(promises);
-
-            syntheticIndicators.forEach((result) => {
-                const record = records.find((record) => record.id === result.id);
-                record.ordersOpened = result.ordersOpened;
-                record.inTrades = result.inTrades;
-                record.profit = result.profit;
-            });
-
-            res.setHeader('content-range', `${range}/${totalRows}`);
-            return res.status(200).json(records)
-        }
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-}) */
-
-app.get('/pairs', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /pairs: ', req.query);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'pairs')) {
-        const requestQuery = req.query,
-            filterParsed = JSON.parse(requestQuery.filter),
-            range = requestQuery.range,
-            requestExchangeId = filterParsed.exchange_id,
-            requestBotId = filterParsed.bot_id
-        if (requestExchangeId) {
+        if (requestExchangeId && requestExchangeId >= 0) {
             const botsQuery = {
                 filter: { exchange_id: requestExchangeId }
             },
@@ -846,75 +733,82 @@ app.get('/pairs', verifyToken, async (req, res) => {
 
             const botsByExchangeId = await DBase.read('eielu_bot_bot', JSON.stringify(botsQuery)),
                 bots = botsByExchangeId.records
+
             if (bots.length > 0) {
-                const botIdsArrayByExchangeId = bots.map(bot => bot.id),
-                    pairsQuery = {
-                        filter: { bot_id: botIdsArrayByExchangeId }
-                    },
-                    response = await DBase.read('eielu_bot_pair', JSON.stringify(pairsQuery))
-                // console.log('botsByExchangeId: ', botsByExchangeId);
-                console.log('range: ', range);
-                records = response.records,
-                    totalRows = response.totalRows
-
-                res.setHeader('content-range', `${range}/${totalRows}`);
-                return res.status(200).json(records)
+                const botIdsArrayByExchangeId = bots.map(bot => bot.id)
+                if (requestBotId) {
+                    const checkRequestedBotInExchange = botIdsArrayByExchangeId.includes(requestBotId)
+                    if (!checkRequestedBotInExchange) {
+                        res.setHeader('content-range', `${range}/0`);
+                        return res.status(200).json([])
+                    } else {
+                        filterWithExchangeOrBot.bot_id = requestBotId
+                    }
+                } else {
+                    filterWithExchangeOrBot.bot_id = botIdsArrayByExchangeId
+                }
+                filterWithExchangeOrBot = Object.assign({}, filterWithExchangeOrBot, filterParsedWithoutExchangeId)
+            } else {
+                res.setHeader('content-range', `${range}/0`);
+                return res.status(200).json([])
             }
-        } else {
-            const query = JSON.stringify(requestQuery),
-                response = await DBase.read('eielu_bot_pair', query),
-                records = response.records,
-                totalRows = response.totalRows
 
-            const promises = records.map(async (record) => {
-                const queryOrdersOpened = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 0
-                    },
-                    expression: 'sum(qty_usd) as ordersOpened'
-                });
-                const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
-
-                const inTradesQuery = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "order_done": 1,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(qty_usd) as inTrades'
-                });
-                const inTradesResponse = await DBase.read('eielu_bot_grid', inTradesQuery);
-
-                const queryProfit = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(sell_qty * sell_price - price * qty) as profit'
-                })
-                const profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
-
-                return {
-                    id: record.id,
-                    ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
-                    inTrades: inTradesResponse.records[0].inTrades,
-                    profit: profitResponse.records[0].profit
-                };
-            });
-
-            const syntheticIndicators = await Promise.all(promises);
-
-            syntheticIndicators.forEach((result) => {
-                const record = records.find((record) => record.id === result.id);
-                record.ordersOpened = result.ordersOpened;
-                record.inTrades = result.inTrades;
-                record.profit = result.profit;
-            });
-
-            res.setHeader('content-range', `${range}/${totalRows}`);
-            return res.status(200).json(records)
+            requestQuery.filter = JSON.stringify(filterWithExchangeOrBot)
         }
+
+        const query = JSON.stringify(requestQuery),
+            response = await DBase.read('eielu_bot_pair', query),
+            records = response.records,
+            totalRows = response.totalRows
+
+        const promises = records.map(async (record) => {
+            const queryOrdersOpened = JSON.stringify({
+                filter: {
+                    "pair_id": record.id,
+                    "sell_done": 0
+                },
+                expression: 'sum(qty_usd) as ordersOpened'
+            });
+            const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
+
+            const inTradesQuery = JSON.stringify({
+                filter: {
+                    "pair_id": record.id,
+                    "order_done": 1,
+                    "sell_done": 1
+                },
+                expression: 'sum(qty_usd) as inTrades'
+            });
+            const inTradesResponse = await DBase.read('eielu_bot_grid', inTradesQuery);
+
+            const queryProfit = JSON.stringify({
+                filter: {
+                    "pair_id": record.id,
+                    "sell_done": 1
+                },
+                expression: 'sum(sell_qty * sell_price - price * qty) as profit'
+            })
+            const profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
+
+            return {
+                id: record.id,
+                ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
+                inTrades: inTradesResponse.records[0].inTrades,
+                profit: profitResponse.records[0].profit
+            };
+        });
+
+        const syntheticIndicators = await Promise.all(promises);
+
+        syntheticIndicators.forEach((result) => {
+            const record = records.find((record) => record.id === result.id);
+            record.ordersOpened = result.ordersOpened;
+            record.inTrades = result.inTrades;
+            record.profit = result.profit;
+        });
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }

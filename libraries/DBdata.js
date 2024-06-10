@@ -217,7 +217,7 @@ class Database {
         }
 
         queryString += ` WHERE ${whereClauses.join(' AND ')}`;
-        console.log('queryString with filter: ', queryString)
+        //console.log('queryString with filter: ', queryString)
       }
 
       if (sort && sort.length === 2) {
@@ -231,8 +231,8 @@ class Database {
         queryParams.push(limit, offset);
       }
 
-      console.log('queryString: ', queryString)
-      console.log('queryParams: ', queryParams)
+      //console.log('queryString: ', queryString)
+      //console.log('queryParams: ', queryParams)
 
       const response = await this.database.query(queryString, queryParams)
       returnObj['records'] = response[0]
