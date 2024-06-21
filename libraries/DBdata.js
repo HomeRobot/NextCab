@@ -110,6 +110,7 @@ class Database {
 
       return JSON.stringify(returnObj)
     } catch (error) {
+      console.log('create error: ', error)
       returnObj.result = 'error'
       returnObj.resultText = 'Error creating record'
       returnObj.resultData = {
@@ -192,7 +193,7 @@ class Database {
       let queryString = `SELECT ${selectString} FROM ${table}`,
         queryParams = []
 
-      if (Object.keys(filter).length > 0) {
+      if (typeof filter == 'object' && Object.keys(filter).length > 0) {
         const whereClauses = [];
 
         for (const key in filter) {
@@ -209,10 +210,13 @@ class Database {
               whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
               queryParams.push(...filterValue);
             } else {
-              whereClauses.push(`${key} = ?`);
-              queryParams.push(filterValue);
+              if (filterValue === null) {
+                whereClauses.push(`${key} IS NULL`);
+              } else {
+                whereClauses.push(`${key} = ?`);
+                queryParams.push(filterValue);
+              }
             }
-
           }
         }
 
@@ -231,8 +235,8 @@ class Database {
         queryParams.push(limit, offset);
       }
 
-      //console.log('queryString: ', queryString)
-      //console.log('queryParams: ', queryParams)
+      // console.log('queryString: ', queryString)
+      // console.log('queryParams: ', queryParams)
 
       const response = await this.database.query(queryString, queryParams)
       returnObj['records'] = response[0]
@@ -304,28 +308,35 @@ class Database {
           if (filterKey.includes(`_like`)) {
             const realKey = filterKey.replace('_like', '')
             whereClauses.push(`${realKey} LIKE ?`)
-            queryParams.push(`%${filterValue}%`)
           } else {
             if (Array.isArray(filterValue)) {
               const placeholders = Array.from({ length: filterValue.length }, () => '?');
               whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
-              queryParams.push(...filterValue);
             } else {
-              whereClauses.push(`${key} = ${filterValue}`);
-              queryParams.push(filterValue);
+              if (filterValue === null) {
+                whereClauses.push(`${key} IS NULL`);
+              } else {
+                whereClauses.push(`${key} = ${filterValue}`);
+              }
             }
-
           }
         }
         queryString += `UPDATE ${table} SET ? WHERE ${whereClauses.join(' AND ')}`;
         queryParams = [dataToUpdate]
       } else {
         queryString += `UPDATE ${table} SET ? WHERE id = ?`;
-        queryParams = [dataToUpdate, targetId]
         delete dataToUpdate['id']
+        queryParams = [dataToUpdate, targetId]
       }
 
+      //console.log('update queryString: ', queryString)
+      //console.log('update queryParams: ', queryParams)
+
       const response = await this.database.query(queryString, queryParams)
+
+      /* console.log('update response: ', response)
+      console.log('update serverStatus: ', response[0].serverStatus)
+      console.log('update warningStatus: ', response[0].warningStatus) */
 
       let status = true
       if (response[0].serverStatus !== 2 && response[0].warningStatus !== 0) {

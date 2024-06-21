@@ -182,6 +182,52 @@ function verifyToken(req, res, next) {
     });
 }
 
+async function setPauseStartEnd(entity, entityId, targetState) {
+    const checkEntityQuery = JSON.stringify({
+        filter: { id: entityId },
+    })
+    const entityResponse = await DBase.read(`eielu_bot_${entity}`, checkEntityQuery),
+        entityToUpd = entityResponse.records[0]
+
+    if (typeof entityToUpd == 'object') {
+        if (entityToUpd.state == 1 && targetState == 2) {
+            const startPauseQuery = JSON.stringify({
+                'queryFields': JSON.stringify({ [`${entity}_id`]: entityId, pause_start: helper.getDateTimeNow() }),
+                'requiredFields': ['pause_start'],
+                'uniqueFields': []
+            })
+            const pauseResponse = await DBase.create('eielu_bot_pause', startPauseQuery)
+            return pauseResponse
+        }
+        if (entityToUpd.state == 2 && targetState == 1) {
+            const getCurrPauseQuery = JSON.stringify({
+                filter: { [`${entity}_id`]: entityId, pause_end: null },
+                expression: 'MAX(id) as targetPauseId'
+            })
+
+            const getCurrPauseResponse = await DBase.read('eielu_bot_pause', getCurrPauseQuery),
+                targetPauseId = getCurrPauseResponse.records[0].targetPauseId
+
+            const stopPauseQuery = JSON.stringify({
+                'fields': { id: targetPauseId, pause_end: helper.getDateTimeNow() }
+            })
+
+            const stopPasueResponse = await DBase.update('eielu_bot_pause', stopPauseQuery)
+            return stopPasueResponse
+        }
+
+        return {
+            result: 'error',
+            errorText: 'Record was not updated because it is already in the desired state'
+        }
+    } else {
+        return {
+            result: 'error',
+            errorText: 'Record not found or cannot be updated'
+        }
+    }
+}
+
 app.get('/me', verifyToken, (req, res) => {
     const userId = req.userId;
 
@@ -203,8 +249,6 @@ app.get('/me', verifyToken, (req, res) => {
 app.get('/getPermissions', verifyToken, (req, res) => {
     return res.json(RBAC.roles)
 })
-
-
 
 
 
@@ -453,8 +497,7 @@ app.put('/exchanges/:id', verifyToken, async (req, res) => {
         const query = JSON.stringify({
             'fields': JSON.stringify(req.body)
         }),
-            response = JSON.parse(await DBase.update('exchange', query))
-        // const exchange = await core.updateExchange(id, req.body)
+            response = await DBase.update('exchange', query)
         return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -632,7 +675,7 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
 
 app.put('/bots/:id', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван PUT-метод /bots. Запрос /bots/:id с параметрами: ', req.body);
+    console.log('Вызван PUT-метод /bots. Тело запроса /bots/:id: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'bots')) {
         const updQuery = { ...req.body }
@@ -640,33 +683,84 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
         delete updQuery.apikey
         delete updQuery.apisecret */
         botId = req.params.id
+        botState = updQuery.state
         rsiTimeframe = updQuery.timeframe
         rsiPeriod = updQuery.period
         updQuery.checked_out_time = '0000-00-00 00:00:00'
 
-        const botQuery = JSON.stringify({
-            'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
-        })
+        let botUpdstatus = true,
+            botPairsUpdStatus = true,
+            generalUpdStatus = true
 
-        const botPairsQuery = JSON.stringify({
-            'fields': { 'rsi_timeframe': rsiTimeframe, 'rsi_period': rsiPeriod },
-            filter: { bot_id: botId }
-        })
-        const botUpdResponse = await DBase.update('eielu_bot_bot', botQuery)
-        const botPairsUpdResponse = await DBase.update('eielu_bot_pair', botPairsQuery)
+        const checkBotQuery = JSON.stringify({
+            filter: { id: botId }
+        }),
+            checkBotResponse = await DBase.read('eielu_bot_bot', checkBotQuery),
+            botToUpd = checkBotResponse.records[0]
 
-        let status = 'true'
+        if (botToUpd) {
+            if (botToUpd.state == botState) {
+                const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
 
-        if (botUpdResponse.status !== true || botPairsUpdResponse.status !== true) {
-            status = 'false'
+                const botChangedData = {};
+                for (const key in updQuery) {
+                    if (updQuery.hasOwnProperty(key) && botParamsNamesEqualPairsParamsNames.hasOwnProperty(key)) {
+                        if (updQuery[key] !== botToUpd[key]) {
+                            botChangedData[key] = updQuery[key];
+                        }
+                    }
+                }
+
+                if (Object.keys(botChangedData).length > 0) {
+                    const botPairFieldsToUpd = {}
+                    for (const key in botChangedData) {
+                        if (botChangedData.hasOwnProperty(key)) {
+                            const mappedKey = botParamsNamesEqualPairsParamsNames[key];
+                            botPairFieldsToUpd[mappedKey] = botChangedData[key];
+                        }
+                    }
+                    const botPairsQuery = JSON.stringify({
+                        'fields': helper.formatDatesInObject(botPairFieldsToUpd, 'YYYY-MM-DD HH:mm:ss'),
+                        filter: { bot_id: botId }
+                    })
+                    const botPairsUpdResponse = await DBase.update('eielu_bot_pair', botPairsQuery)
+
+                    if (botPairsUpdResponse.status !== true) {
+                        botPairsUpdStatus = false
+                    }
+                }
+            } else {
+                const setPauseStartEndResponse = await setPauseStartEnd('bot', botId, botState)
+
+                /* console.log('setPauseStartEndResponse:', setPauseStartEndResponse)
+                if (setPauseStartEndResponse.result !== 'success' || setPauseStartEndResponse.status !== true) {
+                    return res.status(500).json({ error: setPauseStartEndResponse })
+                } */
+            }
+
+            const botQuery = JSON.stringify({
+                'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
+            })
+
+            const botUpdResponse = await DBase.update('eielu_bot_bot', botQuery)
+
+            if (botUpdResponse.status !== true) {
+                botUpdstatus = false
+            }
+
+            if (!botUpdstatus && !botPairsUpdStatus) {
+                generalUpdStatus = false
+            }
+
+            const response = {
+                'id': botId,
+                'procedure': 'update',
+                'status': generalUpdStatus
+            }
+            return res.status(200).json(response)
+        } else {
+            return res.status(403).json({ error: 'No bot to update was found' })
         }
-        response = {
-            'id': botId,
-            'procedure': 'update',
-            'status': status
-        }
-
-        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -762,6 +856,21 @@ app.get('/pairs', verifyToken, async (req, res) => {
             totalRows = response.totalRows
 
         const promises = records.map(async (record) => {
+            const queryBot = JSON.stringify({
+                filter: {
+                    "id": record.bot_id
+                },
+            })
+            const botResponse = await DBase.read('eielu_bot_bot', queryBot);
+            const bot = botResponse.records[0];
+
+            const queryExchange = JSON.stringify({
+                filter: {
+                    "id": bot.exchange_id
+                },
+            })
+            const exchangeResponse = await DBase.read('exchange', queryExchange);
+
             const queryOrdersOpened = JSON.stringify({
                 filter: {
                     "pair_id": record.id,
@@ -792,6 +901,8 @@ app.get('/pairs', verifyToken, async (req, res) => {
 
             return {
                 id: record.id,
+                exchange_id: exchangeResponse.records[0].id,
+                exchange_title: exchangeResponse.records[0].title,
                 ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
                 inTrades: inTradesResponse.records[0].inTrades,
                 profit: profitResponse.records[0].profit
@@ -802,6 +913,8 @@ app.get('/pairs', verifyToken, async (req, res) => {
 
         syntheticIndicators.forEach((result) => {
             const record = records.find((record) => record.id === result.id);
+            record.exchange_id = result.exchange_id;
+            record.exchange_title = result.exchange_title;
             record.ordersOpened = result.ordersOpened;
             record.inTrades = result.inTrades;
             record.profit = result.profit;
@@ -831,14 +944,22 @@ app.get('/pairs/:id', verifyToken, async (req, res) => {
 
 app.put('/pairs/:id', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Вызван PUT-метод /pairs. Запрос /pairs/:id с параметрами: ', req.body);
+    console.log('Вызван PUT-метод /pairs. Тело запроса /pairs/:id: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'pairs')) {
         const updQuery = { ...req.body }
-        /* delete updQuery.api_ready
-        delete updQuery.apikey
-        delete updQuery.apisecret */
+        pairId = req.params.id
         updQuery.checked_out_time = '0000-00-00 00:00:00'
+
+        const checkPairQuery = JSON.stringify({
+            filter: { id: pairId }
+        }),
+            checkPairResponse = await DBase.read('eielu_bot_pair', checkPairQuery),
+            pairToUpd = checkPairResponse.records[0]
+
+        if (updQuery.state !== pairToUpd.state) {
+            const setPauseStartEndResponse = await setPauseStartEnd('pair', pairId, updQuery.state)
+        }
 
         const query = JSON.stringify({
             'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
@@ -901,6 +1022,21 @@ app.get('/states', verifyToken, async (req, res) => {
 
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/states/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /states/:id ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'states')) {
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('states', query),
+            record = response.records[0]
+
+        return res.status(200).json(record)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -1110,8 +1246,9 @@ app.get('/botgrid-by-pair/:id', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
-
+// ORDERS ENDPOINTS
 app.get('/orders/', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
     const userId = req.userId
@@ -1140,136 +1277,113 @@ app.get('/orders/', verifyToken, async (req, res) => {
         return res.status(403).json({ error: 'No permissions' });
     }
 })
+// ---
 
-/* app.get('/orders/', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
+
+// PAUSES ENDPOINTS
+app.get('/bot_pause/', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /bot_pause/ с параметрами: ', req.query);
     const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'botgrid')) {
-        const requestQuery = req.query,
-            range = requestQuery.range
-        const query = JSON.stringify(requestQuery),
-            response = await DBase.read('eielu_bot_grid', query),
+    if (core.canUserAction(userId, 'read', 'bot_pause')) {
+        const query = JSON.stringify(req.query),
+            response = await DBase.read('eielu_bot_pause', query),
+            range = query.range,
             records = response.records,
             totalRows = response.totalRows
 
-        const fieldsToKeep = ['id', 'pair_id', 'price', 'qty', 'startOrder', 'sell_price', 'sell_qty', 'profit', 'order_done', 'sell_done', 'sellOrder'];
-        const recordsWithLimitedFields = records.map(record => {
-            const limitedRecord = {};
-            fieldsToKeep.forEach(field => {
-                if (field in record) {
-                    limitedRecord[field] = record[field];
-                }
-            });
-            return limitedRecord;
-        });
-
         res.setHeader('content-range', `${range}/${totalRows}`);
-        return res.status(200).json(recordsWithLimitedFields)
+        return res.status(200).json(records)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
-}) */
+})
+// ---
+
+
+// WHITELIST ENDPOINTS
+app.get('/whitelist/', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /whitelist/ с параметрами: ', req.query);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'whitelist')) {
+        const query = JSON.stringify(req.query),
+            response = await DBase.read('whitelist', query),
+            range = query.range,
+            records = response.records,
+            totalRows = response.totalRows
+
+        res.setHeader('content-range', `${range}/${totalRows}`);
+        return res.status(200).json(records)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.get('/whitelist/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван GET-метод. Запрос /whitelist/:id с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'read', 'whitelist')) {
+        const query = JSON.stringify({ filter: req.params }),
+            response = await DBase.read('whitelist', query),
+            record = response.records[0]
+
+        return res.status(200).json(record)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+
+app.post('/create-whitelist', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Поступил POST запрос на создание whitelist: ', req.body);
+    const userId = req.userId
+
+    if (core.canUserAction(userId, 'create', 'whitelist')) {
+        const query = JSON.stringify({
+            'queryFields': JSON.stringify(req.body),
+            'requiredFields': ['symbol'],
+            'uniqueFields': ['symbol']
+        }),
+            response = JSON.parse(await DBase.create('whitelist', query)),
+            { result: responseResult, resultText: responseText, resultData: responseData } = response
+
+        if (responseResult == 'success') {
+            return res.status(201).json({
+                id: responseData[0].insertId,
+                message: responseText
+            });
+        }
+        if (responseResult == 'error') {
+            return res.status(500).json({
+                error: responseText,
+                errorData: responseData
+            });
+        }
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+});
+
+app.put('/whitelist/:id', verifyToken, async (req, res) => {
+    // Эндпоинт проверен, работает и точно нужен!!!
+    console.log('Вызван PUT-метод /whitelist. Запрос /whitelist/:id с параметрами: ', req.body);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'whitelist')) {
+        const query = JSON.stringify({
+            'fields': JSON.stringify(req.body)
+        }),
+            response = await DBase.update('whitelist', query)
+        return res.status(200).json(response)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+//---
+
 
 const port = 3003;
 https.createServer(options, app).listen(port, () => {
     console.log(`Сервер запущен на порту ${port}`);
 });
-
-
-
-
-
-// PAIRS ENDPOINTS
-/* app.get('/pairs', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /pairs: ', req.query);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'getList', 'pairs')) {
-        const requestQuery = req.query,
-            filterParsed = JSON.parse(requestQuery.filter),
-            range = requestQuery.range,
-            requestExchangeId = filterParsed.exchange_id,
-            requestBotId = filterParsed.bot_id
-        if (requestExchangeId) {
-            const botsQuery = {
-                filter: { exchange_id: requestExchangeId }
-            },
-                excludeFields = 'apikey, apisecret, apipassword',
-                excludeFieldsArr = excludeFields.split(', ')
-
-            botsQuery['excludeFields'] = excludeFieldsArr
-
-            const botsByExchangeId = await DBase.read('eielu_bot_bot', JSON.stringify(botsQuery)),
-                bots = botsByExchangeId.records
-            if (bots.length > 0) {
-                const botIdsArrayByExchangeId = bots.map(bot => bot.id),
-                    pairsQuery = {
-                        filter: { bot_id: botIdsArrayByExchangeId }
-                    },
-                    response = await DBase.read('eielu_bot_pair', JSON.stringify(pairsQuery))
-                // console.log('botsByExchangeId: ', botsByExchangeId);
-                console.log('range: ', range);
-                records = response.records,
-                    totalRows = response.totalRows
-
-                res.setHeader('content-range', `${range}/${totalRows}`);
-                return res.status(200).json(records)
-            }
-        } else {
-            const query = JSON.stringify(requestQuery),
-                response = await DBase.read('eielu_bot_pair', query),
-                records = response.records,
-                totalRows = response.totalRows
-
-            const promises = records.map(async (record) => {
-                const queryOrdersOpened = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 0
-                    },
-                    expression: 'sum(qty_usd) as ordersOpened'
-                });
-                const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
-
-                const inTradesQuery = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "order_done": 1,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(qty_usd) as inTrades'
-                });
-                const inTradesResponse = await DBase.read('eielu_bot_grid', inTradesQuery);
-
-                const queryProfit = JSON.stringify({
-                    filter: {
-                        "pair_id": record.id,
-                        "sell_done": 1
-                    },
-                    expression: 'sum(sell_qty * sell_price - price * qty) as profit'
-                })
-                const profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
-
-                return {
-                    id: record.id,
-                    ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
-                    inTrades: inTradesResponse.records[0].inTrades,
-                    profit: profitResponse.records[0].profit
-                };
-            });
-
-            const syntheticIndicators = await Promise.all(promises);
-
-            syntheticIndicators.forEach((result) => {
-                const record = records.find((record) => record.id === result.id);
-                record.ordersOpened = result.ordersOpened;
-                record.inTrades = result.inTrades;
-                record.profit = result.profit;
-            });
-
-            res.setHeader('content-range', `${range}/${totalRows}`);
-            return res.status(200).json(records)
-        }
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-}) */
