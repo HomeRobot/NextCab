@@ -651,13 +651,13 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
             response = await DBase.read('eielu_bot_bot', query),
             record = response.records[0]
 
-        /* if ('apikey' in record && 'apisecret' in record) {
+        if ('apikey' in record && 'apisecret' in record) {
             record.api_ready = 1
         } else {
             record.api_ready = 0
         }
 
-        if ('apikey' in record) {
+        /* if ('apikey' in record) {
             delete record.apikey
         }
         if ('apisecret' in record) {
@@ -1073,7 +1073,7 @@ app.get('/timeframes', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'getList', 'timeframes')) {
         const query = JSON.stringify(req.query),
             response = await DBase.read('timeframes', query),
-            range = query.range,
+            range = req.query.range,
             records = response.records,
             totalRows = response.totalRows
 
@@ -1093,7 +1093,7 @@ app.get('/periods', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'getList', 'periods')) {
         const query = JSON.stringify(req.query),
             response = await DBase.read('periods', query),
-            range = query.range,
+            range = req.query.range,
             records = response.records,
             totalRows = response.totalRows
 
@@ -1288,7 +1288,7 @@ app.get('/bot_pause/', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'read', 'bot_pause')) {
         const query = JSON.stringify(req.query),
             response = await DBase.read('eielu_bot_pause', query),
-            range = query.range,
+            range = req.query.range,
             records = response.records,
             totalRows = response.totalRows
 
@@ -1309,7 +1309,7 @@ app.get('/whitelist/', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'read', 'whitelist')) {
         const query = JSON.stringify(req.query),
             response = await DBase.read('whitelist', query),
-            range = query.range,
+            range = req.query.range,
             records = response.records,
             totalRows = response.totalRows
 
