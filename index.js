@@ -132,10 +132,24 @@ app.post('/login', (req, res) => {
     });
 });
 
-app.post('/logout', (req, res) => {
+app.post('/logout', async (req, res) => {
     console.log('Поступил запрос на выход: ', req.body);
     const { username, userId } = req.body;
     // res.header('Access-Control-Allow-Origin', allowedOrigins);
+
+    // Исправить!!! Приходит пустой req.body и проверить результат апдейта
+    /* if (userId) {
+        const userQuery = {
+            'id': req.userId,
+            'lastvisitDate': helper.getNowDate(),
+        }
+        const logOutQuery = JSON.stringify({
+            'fields': helper.formatDatesInObject(userQuery, 'YYYY-MM-DD HH:mm:ss'),
+            'uniqueFields': []
+        })
+        DBase.update('eielu_users', logOutQuery)
+    } */
+
     return res.status(200).json({
         'action': 'logout',
         'status': 'ok'
@@ -296,50 +310,42 @@ app.get('/users/:id', verifyToken, async (req, res) => {
     }
 })
 
-/* app.get('/user', verifyToken, (req, res) => {
-    console.log('Вызван GET-метод. Запрос /user с параметрами: ', req.params);
-    const userId = req.userId
-    if (core.canUserAction(userId, 'read', 'users')) {
-        const user = core.getUser(userId)
-        console.log(user)
-        return res.status(200).json(JSON.stringify(user))
-    } else {
-        return res.status(403).json({ error: 'No permissions' });
-    }
-}) */
-
 app.put('/users/:id', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
     console.log('Вызван PUT-метод /users. Запрос /users/:id с параметрами: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'users')) {
-        const password = req.body.password,
-            saltRounds = 10
+        const lastvisitDate = req.body.lastvisitDate
+            lastResetTime = req.body.lastResetTime,
+            password = req.body.password,
+            saltRounds = 10,
+            updQuery = req.body
+
         if (password) {
             try {
-                const passHash = await bcrypt.hash(password, saltRounds),
-                    queryFieldsWithHashedPassword = req.body
-
-                queryFieldsWithHashedPassword['password'] = passHash
-                const query = JSON.stringify({
-                    'fields': helper.formatDatesInObject(queryFieldsWithHashedPassword, 'YYYY-MM-DD HH:mm:ss'),
-                    'uniqueFields': ['username', 'email']
-                }),
-                    response = await DBase.update('eielu_users', query)
-                return res.status(200).json(response)
+                const passHash = await bcrypt.hash(password, saltRounds)
+                updQuery['password'] = passHash
             } catch (error) {
                 return res.status(500).json({
                     error: error.message
                 })
             }
-        } else {
-            const query = JSON.stringify({
-                'fields': helper.formatDatesInObject(req.body, 'YYYY-MM-DD HH:mm:ss'),
-                'uniqueFields': ['username', 'email']
-            }),
-                response = await DBase.update('eielu_users', query)
-            return res.status(200).json(response)
         }
+
+        if (lastvisitDate == null || lastvisitDate == undefined) {
+            updQuery['lastvisitDate'] = '0000-00-00 00:00:00'
+        }
+
+        if (lastResetTime == null || lastResetTime == undefined) {
+            updQuery['lastResetTime'] = '0000-00-00 00:00:00'
+        }
+
+        const userUpdQuery = JSON.stringify({
+            'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss'),
+            'uniqueFields': ['username', 'email']
+        }),
+            response = await DBase.update('eielu_users', userUpdQuery)
+        return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -352,18 +358,19 @@ app.post('/create-user', verifyToken, async (req, res) => {
 
     if (core.canUserAction(userId, 'create', 'users')) {
         const { password } = req.body,
-            saltRounds = 10
+            saltRounds = 10,
+            createQuery = req.body
         try {
-            const passHash = await bcrypt.hash(password, saltRounds),
-                queryFieldsWithHashedPassword = req.body
+            const passHash = await bcrypt.hash(password, saltRounds)
+                createQuery['password'] = passHash
+                createQuery['registerDate'] = helper.getDateTimeNow()
 
-            queryFieldsWithHashedPassword['password'] = passHash
-            const query = JSON.stringify({
-                'queryFields': queryFieldsWithHashedPassword,
+            const createUserQuery = JSON.stringify({
+                'queryFields': createQuery,
                 'requiredFields': ['username', 'password', 'firstName', 'lastName', 'email', 'telegram', 'role', 'officeId', 'state'],
                 'uniqueFields': ['username', 'email']
             }),
-                response = JSON.parse(await DBase.create('eielu_users', query)),
+                response = JSON.parse(await DBase.create('eielu_users', createUserQuery)),
                 { result: responseResult, resultText: responseText, resultData: responseData } = response
             if (responseResult == 'success') {
                 return res.status(201).json({
@@ -494,10 +501,12 @@ app.put('/exchanges/:id', verifyToken, async (req, res) => {
     const userId = req.userId
 
     if (core.canUserAction(userId, 'update', 'exchange')) {
-        const query = JSON.stringify({
-            'fields': JSON.stringify(req.body)
+        const updQuery = { ...req.body }
+        updQuery.checked_out_time = '0000-00-00 00:00:00'
+        const updExchangeQuery = JSON.stringify({
+            'fields': JSON.stringify(updQuery)
         }),
-            response = await DBase.update('exchange', query)
+            response = await DBase.update('exchange', updExchangeQuery)
         return res.status(200).json(response)
     } else {
         return res.status(403).json({ error: 'No permissions' });
@@ -679,8 +688,8 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'bots')) {
         const updQuery = { ...req.body }
-        /* delete updQuery.api_ready
-        delete updQuery.apikey
+        delete updQuery.api_ready
+        /* delete updQuery.apikey
         delete updQuery.apisecret */
         botId = req.params.id
         botState = updQuery.state
@@ -768,17 +777,20 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
 
 app.post('/create-bot', verifyToken, async (req, res) => {
     // Эндпоинт проверен, работает и точно нужен!!!
-    console.log('Поступил POST запрос на создание офиса: ', req.body);
+    console.log('Поступил POST запрос на создание бота: ', req.body);
     const userId = req.userId
 
     if (core.canUserAction(userId, 'create', 'bot')) {
-        const query = JSON.stringify({
-            'queryFields': JSON.stringify(req.body),
+        const crtQuery = { ...req.body }
+        crtQuery.checked_out_time = '0000-00-00 00:00:00'
+        crtQuery.created = helper.getDateTimeNow()
+        const crtBotQuery = JSON.stringify({
+            'queryFields': JSON.stringify(crtQuery),
             'requiredFields': ['title', 'exchange', 'client_id', 'state'],
             'uniqueFields': ['title']
         })
 
-        const response = JSON.parse(await DBase.create('eielu_bot_bot', query)),
+        const response = JSON.parse(await DBase.create('eielu_bot_bot', crtBotQuery)),
             { result: responseResult, resultText: responseText, resultData: responseData } = response
 
         if (responseResult == 'success') {
@@ -979,7 +991,6 @@ app.post('/create-pair', verifyToken, async (req, res) => {
 
     if (core.canUserAction(userId, 'create', 'pair')) {
         const reqObject = req.body
-        reqObject['created_by'] = userId
         const query = JSON.stringify({
             'queryFields': JSON.stringify(reqObject),
             'requiredFields': ['symbol', 'bot_id', 'state'],

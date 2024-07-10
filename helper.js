@@ -37,6 +37,7 @@ function getDateTimeNow() {
 
 function getBotParamsNamesEqualPairParamsNames() {
   return {
+    auto_limit_pair: 'pair_limit',
     auto_long_tf: 'rsi_long_tf',
     auto_martin: 'martin',
     auto_offset: 'start_offset',
@@ -63,12 +64,14 @@ function getBotParamsNamesEqualPairParamsNames() {
     auto_squiz: 'squiz',
     auto_start_sum: 'start_sum',
     auto_step: 'step',
+    auto_use_ltf: 'use_ltf',
+    long_dump: 'long_dump',
+    long_pump: 'long_pump',
     next_buy_timeout: 'next_buy_timeout',
     rsi_sell_diff: 'rsi_sell_diff',
     rsi_sell: 'rsi_sell',
     timeframe: 'rsi_timeframe',
     timeout: 'start_timeout',
-    use_ltf: 'use_ltf'
   }
 }
 
