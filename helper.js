@@ -1,25 +1,53 @@
-const moment = require('moment');
+const moment = require('moment')
+const bcrypt = require('bcrypt')
+
+function extractBcryptHash(joomlaHash) {
+  // Joomla bcrypt format: $2y$[cost]$[22 character salt][31 character hash]
+  const bcryptRegex = /^\$2y\$(1\d)\$([\w.\/]{22}[\w.\/]{31})$/;
+  const match = joomlaHash.match(bcryptRegex);
+
+  if (match) {
+    // Convert $2y$ to $2a$ for Node.js bcrypt compatibility
+    return `\$2a\$${match[1]}\$${match[2]}`;
+  }
+  return null;
+}
+
+async function verifyJoomlaPassword(plainPassword, joomlaHash) {
+  const bcryptHash = extractBcryptHash(joomlaHash);
+
+  if (!bcryptHash) {
+    throw new Error('Invalid Joomla bcrypt hash format');
+  }
+
+  try {
+    return await bcrypt.compare(plainPassword, bcryptHash);
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
+}
 
 function formatDatesInObject(obj, format) {
-  // Рекурсивная функция для обхода всех свойств объекта
+  // Recursive function to traverse all properties of the object
   function traverse(obj) {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         const value = obj[key];
         if (typeof value === 'object') {
-          traverse(value); // Рекурсивный вызов для вложенных объектов
+          traverse(value); // Recursive call for nested objects
         } else if (typeof value === 'string' && moment(value, moment.ISO_8601).isValid()) {
-          obj[key] = moment(value).format(format); // Форматирование даты
+          obj[key] = moment(value).format(format);  // Date formatting
         } else if (typeof value === 'number') {
-          // Пропускаем форматирование чисел
+          // Skip formatting of numbers
           continue;
         }
       }
     }
   }
 
-  const newObj = { ...obj }; // Создаем копию объекта, чтобы не изменять исходный
-  traverse(newObj); // Обходим объект для форматирования дат
+  const newObj = { ...obj }; // Create a copy of the object to avoid modifying the original
+  traverse(newObj); // Traverse the object to format dates
   return newObj;
 }
 
@@ -78,5 +106,6 @@ function getBotParamsNamesEqualPairParamsNames() {
 module.exports = {
   formatDatesInObject,
   getBotParamsNamesEqualPairParamsNames,
-  getDateTimeNow
+  getDateTimeNow,
+  verifyJoomlaPassword
 }

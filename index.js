@@ -1,8 +1,8 @@
 // import text from './constants.json'
 
 const express = require('express')
-const https = require('https');
-const fs = require('fs');
+const https = require('https')
+const fs = require('fs')
 const cors = require('cors')
 const bodyParser = require('body-parser')
 const bcrypt = require('bcrypt')
@@ -81,54 +81,57 @@ app.post('/register', (req, res) => {
     });
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
     console.log('Поступил запрос на авторизацию: ', req.body);
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: 'Пожалуйста, заполните все поля' });
+        return res.status(400).json({ error: 'Please fill all fields' });
     }
 
-    db.query('SELECT * FROM eielu_users WHERE username = ?', [username], (err, results) => {
+    db.query('SELECT * FROM eielu_users WHERE username = ?', [username], async (err, results) => {
         if (err) {
             console.error('Ошибка при запросе к базе данных:', err);
-            return res.status(500).json({ error: 'Ошибка при запросе к базе данных' });
+            return res.status(500).json({ error: 'Database error' });
         }
 
         if (results.length === 0) {
-            return res.status(401).json({ error: 'Пользователь не найден' });
+            return res.status(401).json({ error: 'User not found' });
         }
 
-        const user = results[0];
-        bcrypt.compare(password, user.password, (bcryptErr, bcryptResult) => {
-            if (bcryptErr || !bcryptResult) {
-                console.log('bcryptResult', bcryptResult);
-                console.log('bcryptErr', bcryptErr);
-                console.log('user', user);
-                console.log('password', password);
-                console.log('user.password', user.password);
-                return res.status(401).json({ error: 'Неверное имя пользователя или пароль' });
+        const user = results[0]
+        plainPassword = password,
+            joomlaHash = user.password
+
+        try {
+            const isMatch = await helper.verifyJoomlaPassword(plainPassword, joomlaHash);
+            if (!isMatch) {
+                return res.status(401).json({ error: 'Wrong username or password' });
             }
+            if (isMatch) {
             const userRole = user.role,
                 userPermissions = RBAC.roles[userRole];
 
-            // Создание JWT токена
-            const token = jwt.sign({
-                userId: user.id,
-                role: user.role
-            }, config.secretKey, { expiresIn: '10min' });
+                // Создание JWT токена
+                const token = jwt.sign({
+                    userId: user.id,
+                    role: user.role
+                }, config.secretKey, { expiresIn: '10min' });
 
-            console.log('Токен: ' + token);
-
-            // res.setHeader('Content-Type', 'application/javascript');
-            return res.status(200).json({
-                "token": token,
-                "permissions": userPermissions,
-                "uid": user.id,
-                "username": user.username,
-                "role": userRole
-            });
-        });
+                //console.log('Токен: ' + token);
+                // res.setHeader('Content-Type', 'application/javascript');
+                return res.status(200).json({
+                    "token": token,
+                    "permissions": userPermissions,
+                    "uid": user.id,
+                    "username": user.username,
+                    "role": userRole
+                });
+            }
+        } catch (error) {
+            console.error('User verification failed:', error.message);
+            return res.status(401).json({ error: 'User verification failed' });
+        }
     });
 });
 
@@ -316,7 +319,7 @@ app.put('/users/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'users')) {
         const lastvisitDate = req.body.lastvisitDate
-            lastResetTime = req.body.lastResetTime,
+        lastResetTime = req.body.lastResetTime,
             password = req.body.password,
             saltRounds = 10,
             updQuery = req.body
@@ -362,8 +365,8 @@ app.post('/create-user', verifyToken, async (req, res) => {
             createQuery = req.body
         try {
             const passHash = await bcrypt.hash(password, saltRounds)
-                createQuery['password'] = passHash
-                createQuery['registerDate'] = helper.getDateTimeNow()
+            createQuery['password'] = passHash
+            createQuery['registerDate'] = helper.getDateTimeNow()
 
             const createUserQuery = JSON.stringify({
                 'queryFields': createQuery,
