@@ -13,6 +13,7 @@ const RBAC = require('./roles')
 const core = require('./core')
 const helper = require('./helper')
 const Database = require('./libraries/DBdata')
+const Redis = require('ioredis');
 
 const app = express();
 
@@ -40,6 +41,33 @@ const db = mysql.createPool({
 
 const dbp = db.promise()
 const DBase = new Database(dbp);
+
+// Подключение к серверу Redis
+const redis = new Redis({
+    host: config.REDIS_HOST_01,
+    port: config.REDIS_PORT_01,
+    password: config.REDIS_PASS_01
+});
+
+const redisSub = new Redis({
+    host: config.REDIS_HOST_01,
+    port: config.REDIS_PORT_01,
+    password: config.REDIS_PASS_01
+});
+
+redisSub.subscribe('main', 'auto');
+redis.on('connect', function () {
+    console.log('Подключение к Redis установлено');
+});
+redis.on('error', function (err) {
+    console.error('Ошибка Redis:', err);
+});
+redis.on('ready', () => {
+    console.log('Клиент Redis готов к работе');
+});
+redisSub.on("message", (channel, message) => {
+    console.log('redisSub message: ', channel, message)
+})
 
 // Установка MIME типа для всех файлов с определенным расширением
 app.use('/', express.static('public', {
@@ -109,8 +137,8 @@ app.post('/login', async (req, res) => {
                 return res.status(401).json({ error: 'Wrong username or password' });
             }
             if (isMatch) {
-            const userRole = user.role,
-                userPermissions = RBAC.roles[userRole];
+                const userRole = user.role,
+                    userPermissions = RBAC.roles[userRole];
 
                 // Создание JWT токена
                 const token = jwt.sign({
@@ -207,7 +235,7 @@ async function setPauseStartEnd(entity, entityId, targetState) {
         entityToUpd = entityResponse.records[0]
 
     if (typeof entityToUpd == 'object') {
-        if (entityToUpd.state == 1 && targetState == 2) {
+        if (entityToUpd.state === 1 && targetState === 2) {
             const startPauseQuery = JSON.stringify({
                 'queryFields': JSON.stringify({ [`${entity}_id`]: entityId, pause_start: helper.getDateTimeNow() }),
                 'requiredFields': ['pause_start'],
@@ -216,7 +244,7 @@ async function setPauseStartEnd(entity, entityId, targetState) {
             const pauseResponse = await DBase.create('eielu_bot_pause', startPauseQuery)
             return pauseResponse
         }
-        if (entityToUpd.state == 2 && targetState == 1) {
+        if ((entityToUpd.state === 0 || entityToUpd.state === 2) && targetState == 1) {
             const getCurrPauseQuery = JSON.stringify({
                 filter: { [`${entity}_id`]: entityId, pause_end: null },
                 expression: 'MAX(id) as targetPauseId'
@@ -235,7 +263,7 @@ async function setPauseStartEnd(entity, entityId, targetState) {
 
         return {
             result: 'error',
-            errorText: 'Record was not updated because it is already in the desired state'
+            errorText: 'The record has not been updated because it is in an inappropriate state'
         }
     } else {
         return {
@@ -690,19 +718,19 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /bots. Тело запроса /bots/:id: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'bots')) {
-        const updQuery = { ...req.body }
-        delete updQuery.api_ready
-        /* delete updQuery.apikey
-        delete updQuery.apisecret */
-        botId = req.params.id
-        botState = updQuery.state
-        rsiTimeframe = updQuery.timeframe
-        rsiPeriod = updQuery.period
-        updQuery.checked_out_time = '0000-00-00 00:00:00'
-
+        const updQuery = { ...req.body },
+            botId = parseInt(req.params.id),
+            botState = parseInt(updQuery.state)
         let botUpdstatus = true,
             botPairsUpdStatus = true,
-            generalUpdStatus = true
+            generalUpdStatus = true,
+            redis_publish = false,
+            redis_targetBotState = '',
+            redis_status = ''
+
+        delete updQuery.api_ready
+
+        updQuery.checked_out_time = '0000-00-00 00:00:00'
 
         const checkBotQuery = JSON.stringify({
             filter: { id: botId }
@@ -742,12 +770,23 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
                     }
                 }
             } else {
-                const setPauseStartEndResponse = await setPauseStartEnd('bot', botId, botState)
-
-                /* console.log('setPauseStartEndResponse:', setPauseStartEndResponse)
-                if (setPauseStartEndResponse.result !== 'success' || setPauseStartEndResponse.status !== true) {
-                    return res.status(500).json({ error: setPauseStartEndResponse })
-                } */
+                if (botState === 1 || botState === 2) {
+                    const setPauseStartEndResponse = await setPauseStartEnd('bot', botId, botState)
+                    if ((setPauseStartEndResponse.result == "success") || (setPauseStartEndResponse.procedure == "update" && setPauseStartEndResponse.status)) {
+                        redis_publish = true
+                        if (botState === 2) {
+                            redis_targetBotState = 'pause';
+                        }
+                        if (botState === 1) {
+                            redis_targetBotState = 'start';
+                        }
+                    }
+                } else {
+                    if (botState === 0) {
+                        redis_publish = true
+                        redis_targetBotState = 'stop';
+                    }
+                }
             }
 
             const botQuery = JSON.stringify({
@@ -760,7 +799,23 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
                 botUpdstatus = false
             }
 
-            if (!botUpdstatus && !botPairsUpdStatus) {
+            if (redis_publish && botUpdResponse.status) {
+                const redisMessage = {
+                    'id': parseInt(botId),
+                    'command': redis_targetBotState,
+                }
+                redis.publish('main', JSON.stringify(redisMessage))
+                redisSub.on('message', function(channel, message) {
+                    if (channel === 'main') {
+                        const redisResponse = JSON.parse(message)
+                        if (redisResponse.id === botId) {
+                            redis_status = 'ready'
+                        }
+                    }
+                });
+            }
+
+            if (!botUpdstatus && !botPairsUpdStatus && redis_status == '') {
                 generalUpdStatus = false
             }
 
@@ -769,7 +824,11 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
                 'procedure': 'update',
                 'status': generalUpdStatus
             }
-            return res.status(200).json(response)
+            if (generalUpdStatus) {
+                return res.status(200).json(response)
+            } else {
+                return res.status(403).json(response)
+            }
         } else {
             return res.status(403).json({ error: 'No bot to update was found' })
         }
@@ -962,8 +1021,14 @@ app.put('/pairs/:id', verifyToken, async (req, res) => {
     console.log('Вызван PUT-метод /pairs. Тело запроса /pairs/:id: ', req.body);
     const userId = req.userId
     if (core.canUserAction(userId, 'update', 'pairs')) {
-        const updQuery = { ...req.body }
-        pairId = req.params.id
+        const updQuery = { ...req.body },
+            pairId = parseInt(req.params.id),
+            pairState = parseInt(updQuery.state)
+        let generalUpdStatus = true,
+            redis_publish = false,
+            redis_targetPairState = '',
+            redis_status = ''
+
         updQuery.checked_out_time = '0000-00-00 00:00:00'
 
         const checkPairQuery = JSON.stringify({
@@ -972,8 +1037,24 @@ app.put('/pairs/:id', verifyToken, async (req, res) => {
             checkPairResponse = await DBase.read('eielu_bot_pair', checkPairQuery),
             pairToUpd = checkPairResponse.records[0]
 
-        if (updQuery.state !== pairToUpd.state) {
-            const setPauseStartEndResponse = await setPauseStartEnd('pair', pairId, updQuery.state)
+        if (pairState !== pairToUpd.state) {
+            if (pairState === 1 || pairState === 2) {
+                const setPauseStartEndResponse = await setPauseStartEnd('pair', pairId, updQuery.state)
+                if ((setPauseStartEndResponse.result == "success") || (setPauseStartEndResponse.procedure == "update" && setPauseStartEndResponse.status)) {
+                    redis_publish = true
+                    if (pairState === 2) {
+                        redis_targetPairState = 'pause';
+                    }
+                    if (pairState === 1) {
+                        redis_targetPairState = 'start';
+                    }
+                } else {
+                    if (pairState === 0) {
+                        redis_publish = true
+                        redis_targetPairState = 'stop';
+                    }
+                }
+            }
         }
 
         const query = JSON.stringify({
@@ -981,7 +1062,32 @@ app.put('/pairs/:id', verifyToken, async (req, res) => {
         })
 
         const response = await DBase.update('eielu_bot_pair', query)
-        return res.status(200).json(response)
+
+        /* if (redis_publish && response.status) {
+            const redisMessage = {
+                'id': pairId,
+                'command': redis_targetPairState,
+            }
+            redis.publish('bot-' + pairToUpd.bot_id, JSON.stringify(redisMessage))
+            redisSub.on('message', function(channel, message) {
+                if (channel === 'bot-' + pairToUpd.bot_id) {
+                    const redisResponse = JSON.parse(message)
+                    if (redisResponse.id === pairId) {
+                        redis_status = 'ready'
+                    }
+                }
+            });
+        } */
+
+        if (!response.status /* && redis_status == '' */) {
+            generalUpdStatus = false
+        }
+
+        if (generalUpdStatus) {
+            return res.status(200).json(response)
+        } else {
+            return res.status(403).json(response)
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
