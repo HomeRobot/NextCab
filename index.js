@@ -14,6 +14,8 @@ const core = require('./core')
 const helper = require('./helper')
 const Database = require('./libraries/DBdata')
 const Redis = require('ioredis');
+const ccxt = require('ccxt')
+const { error } = require('console')
 
 const app = express();
 
@@ -657,23 +659,25 @@ app.get('/bots', verifyToken, async (req, res) => {
             records = response.records,
             totalRows = response.totalRows
 
-        records.forEach((record) => {
-            if (record.apikey && record.apikey.trim().length > 0 && record.apisecret && record.apisecret.trim().length > 0) {
-                record.api_ready = 1
-            } else {
-                record.api_ready = 0
-            }
+        if (records) {
+            records.forEach((record) => {
+                if (record.apikey && record.apikey.trim().length > 0 && record.apisecret && record.apisecret.trim().length > 0) {
+                    record.api_ready = 1
+                } else {
+                    record.api_ready = 0
+                }
 
-            if ('apikey' in record) {
-                delete record.apikey
-            }
-            if ('apisecret' in record) {
-                delete record.apisecret
-            }
-            if ('apipassword' in record) {
-                delete record.apipassword
-            }
-        })
+                if ('apikey' in record) {
+                    delete record.apikey
+                }
+                if ('apisecret' in record) {
+                    delete record.apisecret
+                }
+                if ('apipassword' in record) {
+                    delete record.apipassword
+                }
+            })
+        }
 
         res.setHeader('content-range', `${range}/${totalRows}`);
         return res.status(200).json(records)
@@ -691,10 +695,12 @@ app.get('/bots/:id', verifyToken, async (req, res) => {
             response = await DBase.read('eielu_bot_bot', query),
             record = response.records[0]
 
-        if ('apikey' in record && 'apisecret' in record) {
-            record.api_ready = 1
-        } else {
-            record.api_ready = 0
+        if (record) {
+            if ('apikey' in record && 'apisecret' in record) {
+                record.api_ready = 1
+            } else {
+                record.api_ready = 0
+            }
         }
 
         /* if ('apikey' in record) {
@@ -805,7 +811,7 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
                     'command': redis_targetBotState,
                 }
                 redis.publish('main', JSON.stringify(redisMessage))
-                redisSub.on('message', function(channel, message) {
+                redisSub.on('message', function (channel, message) {
                     if (channel === 'main') {
                         const redisResponse = JSON.parse(message)
                         if (redisResponse.id === botId) {
@@ -1007,10 +1013,34 @@ app.get('/pairs/:id', verifyToken, async (req, res) => {
     const userId = req.userId
     if (core.canUserAction(userId, 'read', 'pairs')) {
         const query = JSON.stringify({ filter: req.params }),
-            response = await DBase.read('eielu_bot_pair', query),
+            response = await DBase.read('eielu_bot_pair', query)
+
+        if (response.records && response.records.length > 0) {
             record = response.records[0]
 
-        return res.status(200).json(record)
+            const pairBotId = record.bot_id
+            if (pairBotId) {
+                const queryBot = JSON.stringify({
+                    filter: {
+                        "id": pairBotId
+                    },
+                })
+                const botResponse = await DBase.read('eielu_bot_bot', queryBot);
+                const bot = botResponse.records[0];
+                if (bot) {
+                    const queryExchange = JSON.stringify({
+                        filter: {
+                            "id": bot.exchange_id
+                        },
+                    })
+                    const exchangeResponse = await DBase.read('exchange', queryExchange);
+                    record.exchange_id = exchangeResponse.records[0] ? exchangeResponse.records[0].id : null
+                }
+            }
+            return res.status(200).json(record)
+        } else {
+            return res.status(404).json({ error: 'No data found' })
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -1276,37 +1306,41 @@ app.get('/botgrid-by-bot/:id', verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /botgrid-by-bot: с параметрами: ', req.params);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'botgrid')) {
-        const elId = parseInt(req.params.id),
-            response = {}
+        try {
+            const elId = parseInt(req.params.id),
+                response = {}
 
-        response.id = elId
+            response.id = elId
 
-        const queryInTrades = JSON.stringify({
-            filter: {
-                "bot_id": elId,
-                "order_done": 1,
-                "sell_done": 0
-            },
-            sort: '["id","ASC"]',
-            expression: 'sum(qty_usd) as inTrades'
-        })
+            const queryInTrades = JSON.stringify({
+                filter: {
+                    "bot_id": elId,
+                    "order_done": 1,
+                    "sell_done": 0
+                },
+                sort: '["id","ASC"]',
+                expression: 'sum(qty_usd) as inTrades'
+            })
 
-        inTradesResponse = await DBase.read('eielu_bot_grid', queryInTrades);
-        response.in_trades = inTradesResponse.records[0].inTrades
+            inTradesResponse = await DBase.read('eielu_bot_grid', queryInTrades);
+            response.in_trades = inTradesResponse.records[0].inTrades
 
-        const queryProfit = JSON.stringify({
-            filter: {
-                "bot_id": elId,
-                "sell_done": 1
-            },
-            sort: '["id","ASC"]',
-            expression: 'sum(sell_qty * sell_price - price * qty) as profit'
-        })
+            const queryProfit = JSON.stringify({
+                filter: {
+                    "bot_id": elId,
+                    "sell_done": 1
+                },
+                sort: '["id","ASC"]',
+                expression: 'sum(sell_qty * sell_price - price * qty) as profit'
+            })
 
-        profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
-        response.profit = profitResponse.records[0].profit
+            profitResponse = await DBase.read('eielu_bot_grid', queryProfit);
+            response.profit = profitResponse.records[0].profit
 
-        return res.status(200).json(response)
+            return res.status(200).json(response)
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -1370,29 +1404,34 @@ app.get('/botgrid-by-pair/:id', verifyToken, async (req, res) => {
 
 // ORDERS ENDPOINTS
 app.get('/orders/', verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /orders-by-pair: ', req.query);
+    console.log('Вызван GET-метод. Запрос /orders: ', req.query);
     const userId = req.userId
     if (core.canUserAction(userId, 'getList', 'botgrid')) {
-        const requestQuery = req.query,
-            range = requestQuery.range
-        const query = JSON.stringify(requestQuery),
-            response = await DBase.read('eielu_bot_grid', query),
-            records = response.records,
-            totalRows = response.totalRows
+        try {
+            const requestQuery = req.query,
+                range = requestQuery.range
+            const query = JSON.stringify(requestQuery),
+                response = await DBase.read('eielu_bot_grid', query),
+                records = response.records,
+                totalRows = response.totalRows
 
-        const fieldsToKeep = ['id', 'pair_id', 'price', 'qty', 'startOrder', 'sell_price', 'sell_qty', 'profit', 'order_done', 'sell_done', 'sellOrder'];
-        const recordsWithLimitedFields = records.map(record => {
-            const limitedRecord = {};
-            fieldsToKeep.forEach(field => {
-                if (field in record) {
-                    limitedRecord[field] = record[field];
-                }
+            const fieldsToKeep = ['id', 'pair_id', 'symbol', 'price', 'qty', 'startOrder', 'sell_price', 'sell_qty', 'profit', 'order_done', 'sell_done', 'sellOrder'];
+            const recordsWithLimitedFields = records.map(record => {
+                const limitedRecord = {};
+                fieldsToKeep.forEach(field => {
+                    if (field in record) {
+                        limitedRecord[field] = record[field];
+                    }
+                });
+                return limitedRecord;
             });
-            return limitedRecord;
-        });
 
-        res.setHeader('content-range', `${range}/${totalRows}`);
-        return res.status(200).json(recordsWithLimitedFields)
+            res.setHeader('content-range', `${range}/${totalRows}`);
+            return res.status(200).json(recordsWithLimitedFields)
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
@@ -1496,6 +1535,86 @@ app.put('/whitelist/:id', verifyToken, async (req, res) => {
         }),
             response = await DBase.update('whitelist', query)
         return res.status(200).json(response)
+    } else {
+        return res.status(403).json({ error: 'No permissions' });
+    }
+})
+//---
+
+
+// CCTX ENDPOINTS
+app.get('/cctx/:params', verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /cctx/ с параметрами: ', req.params);
+    const userId = req.userId
+    if (core.canUserAction(userId, 'update', 'whitelist')) {
+        const cctxQuery = JSON.parse(req.params.params)
+        console.log('cctxQueryParams: ', cctxQuery);
+        if (cctxQuery.exchangeId) {
+            if (cctxQuery.queryDataType == 'candles') {
+                const pairSymbol = `${cctxQuery.pairAltCur}/${cctxQuery.pairBaseCur}`
+                const queryBot = JSON.stringify({
+                    filter: {
+                        id: cctxQuery.botId
+                    }
+                })
+                const responseBot = await DBase.read('eielu_bot_bot', queryBot)
+                if (responseBot.records.length > 0) {
+                    const bot = responseBot.records[0]
+                    let cctxExchange
+
+                    if (cctxQuery.exchangeId == 1) {
+                        cctxExchange = new ccxt.binance(
+                            {
+                                //"apiKey": bot.apikey,
+                                //"secret": bot.apisecret,
+                                "options": {
+                                    'defaultType': 'spot'
+                                }
+                            }
+                        )
+                    }
+                    if (cctxQuery.exchangeId == 2) {
+                        cctxExchange = new ccxt.bybit(
+                            {
+                                //"apiKey": bot.apikey,
+                                //"secret": bot.apisecret,
+                                "options": {
+                                    'createMarketBuyOrderRequiresPrice': true,
+                                    'accountType': 'UNIFIED'
+                                }
+                            }
+                        )
+                    }
+                    if (cctxQuery.exchangeId == 3) {
+                        cctxExchange = new ccxt.okx({
+                            //"apiKey": bot.apikey,
+                            //"secret": bot.apisecret,
+                            //"password": bot.apipassword,
+                            "options": {
+                                'defaultType': 'spot'
+                            }
+                        })
+                    }
+
+                    try {
+                        const candles = await cctxExchange.fetchOHLCV(pairSymbol, cctxQuery.timeframe, undefined, cctxQuery.limit)
+                        const response = {
+                            candles: candles,
+                            responseTime: new Date().getTime() - 60 * 60 * 1000,
+                        }
+                        return res.status(200).json(response)
+                    } catch (error) {
+                        return res.status(500).json({ error: error.message });
+                    }
+                } else {
+                    return res.status(500).json({ error: 'Bot not found' });
+                }
+            } else {
+                return res.status(500).json({ error: 'Exchange not found' });
+            }
+        } else {
+            return res.status(500).json({ error: 'Exchange id not found' });
+        }
     } else {
         return res.status(403).json({ error: 'No permissions' });
     }
