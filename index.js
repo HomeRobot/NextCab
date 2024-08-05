@@ -954,9 +954,10 @@ app.get('/pairs', verifyToken, async (req, res) => {
             const queryOrdersOpened = JSON.stringify({
                 filter: {
                     "pair_id": record.id,
-                    "sell_done": 0
+                    "order_done": 1,
+                    "sell_done": 0,
                 },
-                expression: 'sum(qty_usd) as ordersOpened'
+                expression: 'count(id) as ordersOpened'
             });
             const ordersOpenedResponse = await DBase.read('eielu_bot_grid', queryOrdersOpened);
 
@@ -964,7 +965,7 @@ app.get('/pairs', verifyToken, async (req, res) => {
                 filter: {
                     "pair_id": record.id,
                     "order_done": 1,
-                    "sell_done": 1
+                    "sell_done": 0
                 },
                 expression: 'sum(qty_usd) as inTrades'
             });
