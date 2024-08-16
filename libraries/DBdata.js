@@ -329,8 +329,8 @@ class Database {
         queryParams = [dataToUpdate, targetId]
       }
 
-      //console.log('update queryString: ', queryString)
-      //console.log('update queryParams: ', queryParams)
+      // console.log('update queryString: ', queryString)
+      // console.log('update queryParams: ', queryParams)
 
       const response = await this.database.query(queryString, queryParams)
 

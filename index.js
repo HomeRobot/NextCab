@@ -726,7 +726,9 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
     if (core.canUserAction(userId, 'update', 'bots')) {
         const updQuery = { ...req.body },
             botId = parseInt(req.params.id),
-            botState = parseInt(updQuery.state)
+            botState = updQuery.state ? parseInt(updQuery.state) : false,
+            isStrategy = updQuery.is_strategy,
+            useStrategy = updQuery.use_strategy
         let botUpdstatus = true,
             botPairsUpdStatus = true,
             generalUpdStatus = true,
@@ -734,9 +736,15 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
             redis_targetBotState = '',
             redis_status = ''
 
+        updQuery.id = botId
         delete updQuery.api_ready
-
         updQuery.checked_out_time = '0000-00-00 00:00:00'
+
+        if (isStrategy) {
+            delete updQuery.use_strategy
+            updQuery.is_strategy = 1
+            updQuery.strategy = null
+        }
 
         const checkBotQuery = JSON.stringify({
             filter: { id: botId }
@@ -745,8 +753,35 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
             botToUpd = checkBotResponse.records[0]
 
         if (botToUpd) {
-            if (botToUpd.state == botState) {
+            if (botState == false) {
                 const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
+
+                if (isStrategy == false) {
+                    updQuery.is_strategy = 0
+                    if (useStrategy) {
+                        if (updQuery.strategy) {
+                            const strategyOriginQuery = JSON.stringify({
+                                filter: { id: updQuery.strategy }
+                            })
+                            const strategyOriginResponse = await DBase.read('eielu_bot_bot', strategyOriginQuery),
+                                strategyOrigin = strategyOriginResponse.records[0]
+
+                            if (strategyOrigin) {
+                                for (const key in botParamsNamesEqualPairsParamsNames) {
+                                    if (botParamsNamesEqualPairsParamsNames.hasOwnProperty(key) && strategyOrigin.hasOwnProperty(key)) {
+                                        updQuery[key] = strategyOrigin[key];
+                                    }
+                                }
+                            } else {
+                                return res.status(403).json({ error: 'No strategy for update was found' })
+                            }
+                        } else {
+                            updQuery.strategy = null
+                        }
+                    } else {
+                        updQuery.strategy = null
+                    }
+                }
 
                 const botChangedData = {};
                 for (const key in updQuery) {
@@ -795,10 +830,11 @@ app.put('/bots/:id', verifyToken, async (req, res) => {
                 }
             }
 
+            delete updQuery.use_strategy
+
             const botQuery = JSON.stringify({
                 'fields': helper.formatDatesInObject(updQuery, 'YYYY-MM-DD HH:mm:ss')
             })
-
             const botUpdResponse = await DBase.update('eielu_bot_bot', botQuery)
 
             if (botUpdResponse.status !== true) {
