@@ -1,7 +1,14 @@
-const moment = require('moment')
 const bcrypt = require('bcrypt')
+const config = require('./config')
+const { DBase, DBPrefix } = require('./modules/DB/db')
+const jwt = require('jsonwebtoken')
+const moment = require('moment')
 
-function extractBcryptHash(joomlaHash) {
+const checkPermissionsByUid = (uid, action, resource) => {
+  return true
+}
+
+const extractBcryptHash = (joomlaHash) => {
   // Joomla bcrypt format: $2y$[cost]$[22 character salt][31 character hash]
   const bcryptRegex = /^\$2y\$(1\d)\$([\w.\/]{22}[\w.\/]{31})$/;
   const match = joomlaHash.match(bcryptRegex);
@@ -13,22 +20,7 @@ function extractBcryptHash(joomlaHash) {
   return null;
 }
 
-async function verifyJoomlaPassword(plainPassword, joomlaHash) {
-  const bcryptHash = extractBcryptHash(joomlaHash);
-
-  if (!bcryptHash) {
-    throw new Error('Invalid Joomla bcrypt hash format');
-  }
-
-  try {
-    return await bcrypt.compare(plainPassword, bcryptHash);
-  } catch (error) {
-    console.error('Error comparing passwords:', error);
-    return false;
-  }
-}
-
-function formatDatesInObject(obj, format) {
+const formatDatesInObject = (obj, format) => {
   // Recursive function to traverse all properties of the object
   function traverse(obj) {
     for (let key in obj) {
@@ -51,19 +43,7 @@ function formatDatesInObject(obj, format) {
   return newObj;
 }
 
-function getDateTimeNow() {
-  const dateNow = new Date();
-  const year = dateNow.getFullYear();
-  const month = String(dateNow.getMonth() + 1).padStart(2, '0');
-  const day = String(dateNow.getDate()).padStart(2, '0');
-  const hours = String(dateNow.getHours()).padStart(2, '0');
-  const minutes = String(dateNow.getMinutes()).padStart(2, '0');
-  const seconds = String(dateNow.getSeconds()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-}
-
-function getBotParamsNamesEqualPairParamsNames() {
+const getBotParamsNamesEqualPairParamsNames = () => {
   return {
     auto_limit_pair: 'pair_limit',
     auto_long_tf: 'rsi_long_tf',
@@ -103,9 +83,122 @@ function getBotParamsNamesEqualPairParamsNames() {
   }
 }
 
+const getDateTimeNow = () => {
+  const dateNow = new Date();
+  const year = dateNow.getFullYear();
+  const month = String(dateNow.getMonth() + 1).padStart(2, '0');
+  const day = String(dateNow.getDate()).padStart(2, '0');
+  const hours = String(dateNow.getHours()).padStart(2, '0');
+  const minutes = String(dateNow.getMinutes()).padStart(2, '0');
+  const seconds = String(dateNow.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+const setPauseStartEnd = async (entity, entityId, targetState, useFEntity) => {
+  let fEntity = ''
+  if (useFEntity) {
+    fEntity = 'f'
+  }
+  const checkEntityQuery = JSON.stringify({
+    filter: { id: entityId },
+  })
+  const entityResponse = await DBase.read(`${DBPrefix}bot_${fEntity}${entity}`, checkEntityQuery),
+    entityToUpd = entityResponse.records[0]
+
+  if (typeof entityToUpd == 'object') {
+    if (entityToUpd.state === 1 && targetState === 2) {
+      const startPauseQuery = JSON.stringify({
+        'queryFields': JSON.stringify({ [`${entity}_id`]: entityId, pause_start: getDateTimeNow() }),
+        'requiredFields': ['pause_start'],
+        'uniqueFields': []
+      })
+      const pauseResponse = await DBase.create(`${DBPrefix}bot_${fEntity}pause`, startPauseQuery)
+      return pauseResponse
+    }
+    if ((entityToUpd.state === 0 || entityToUpd.state === 2) && targetState == 1) {
+      const getCurrPauseQuery = JSON.stringify({
+        filter: { [`${entity}_id`]: entityId, pause_end: null },
+        expression: 'MAX(id) as targetPauseId'
+      })
+
+      const getCurrPauseResponse = await DBase.read(`${DBPrefix}bot_${fEntity}pause`, getCurrPauseQuery),
+        targetPauseId = getCurrPauseResponse.records[0].targetPauseId
+
+      const stopPauseQuery = JSON.stringify({
+        'fields': { id: targetPauseId, pause_end: getDateTimeNow() }
+      })
+
+      const stopPauseResponse = await DBase.update(`${DBPrefix}bot_${fEntity}pause`, stopPauseQuery)
+      return stopPauseResponse
+    }
+
+    return {
+      result: 'error',
+      errorText: 'The record has not been updated because it is in an inappropriate state'
+    }
+  } else {
+    return {
+      result: 'error',
+      errorText: 'Record not found or cannot be updated'
+    }
+  }
+}
+
+const verifyJoomlaPassword = async (plainPassword, joomlaHash) => {
+  const bcryptHash = extractBcryptHash(joomlaHash);
+
+  if (!bcryptHash) {
+    throw new Error('Invalid Joomla bcrypt hash format');
+  }
+
+  try {
+    return await bcrypt.compare(plainPassword, bcryptHash);
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
+}
+
+const verifyToken = (req, res, next) => {
+  let token = req.headers['authorization'];
+
+  if (!token) {
+      console.log('No token provided')
+      return res.status(401).json({ error: 'No token provided' });
+  }
+
+  jwt.verify(token, config.secretKey, (err, decoded) => {
+      if (err) {
+          console.log('Token verification failed: ', err)
+          console.log(err)
+          const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+          if (err.name === 'TokenExpiredError' && decoded.exp < currentTime) {
+              console.log('Token expired')
+              return res.status(401).json({ error: 'Token expired' });
+          }
+          return res.status(500).json({ error: err.name });
+      }
+
+      /* const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+      if (decoded.exp < currentTime) {
+          return res.status(401).json({ error: 'Token expired' });
+      } */
+
+      // Decoded data from the token containing the user ID
+      req.userId = decoded.userId;
+      next();
+  });
+}
+
+
+
 module.exports = {
+  checkPermissionsByUid,
   formatDatesInObject,
   getBotParamsNamesEqualPairParamsNames,
   getDateTimeNow,
-  verifyJoomlaPassword
+  setPauseStartEnd,
+  verifyJoomlaPassword,
+  verifyToken,
 }
