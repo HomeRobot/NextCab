@@ -80,7 +80,7 @@ const getBots = async (req, res) => {
 const updateBotById = async (req, res) => {
   const updQuery = { ...req.body },
     botId = parseInt(req.params.id),
-    botState = updQuery.state ? parseInt(updQuery.state) : false,
+    botState = updQuery.state !== undefined ? parseInt(updQuery.state) : false,
     isStrategy = updQuery.is_strategy,
     useStrategy = updQuery.use_strategy
   let botUpdstatus = true,
@@ -107,7 +107,7 @@ const updateBotById = async (req, res) => {
     botToUpd = checkBotResponse.records[0]
 
   if (botToUpd) {
-    if (botState == false) {
+    if (botState === false) {
       const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
 
       if (isStrategy == false) {
@@ -175,6 +175,9 @@ const updateBotById = async (req, res) => {
           if (botState === 1) {
             redis_targetBotState = 'start';
           }
+        } else {
+          console.log('setPauseStartEndResponse failed')
+          return res.status(403).json({ error: 'Set pause or start failed' })
         }
       } else {
         if (botState === 0) {

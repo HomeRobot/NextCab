@@ -114,7 +114,7 @@ const setPauseStartEnd = async (entity, entityId, targetState, useFEntity) => {
         'uniqueFields': []
       })
       const pauseResponse = await DBase.create(`${DBPrefix}bot_${fEntity}pause`, startPauseQuery)
-      return pauseResponse
+      return JSON.parse(pauseResponse)
     }
     if ((entityToUpd.state === 0 || entityToUpd.state === 2) && targetState == 1) {
       const getCurrPauseQuery = JSON.stringify({
