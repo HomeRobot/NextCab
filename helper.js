@@ -171,7 +171,8 @@ const verifyToken = (req, res, next) => {
   jwt.verify(token, config.secretKey, (err, decoded) => {
       if (err) {
           console.log('Token verification failed: ', err)
-          console.log(err)
+          console.log('err: ', err)
+          console.log('decoded: ', decoded)
           const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
           if (err.name === 'TokenExpiredError' && decoded.exp < currentTime) {
               console.log('Token expired')

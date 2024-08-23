@@ -30,7 +30,9 @@ const getFBotGridByBot = async (req, res) => {
         })
 
         inTradesResponse = await DBase.read(`${DBPrefix}bot_fgrid`, queryInTrades);
-        response.in_trades = inTradesResponse.records[0].inTrades
+        if (inTradesResponse.records.length > 0) {
+            response.in_trades = inTradesResponse.records[0].inTrades
+        }
 
         const queryProfit = JSON.stringify({
             filter: {
@@ -42,7 +44,9 @@ const getFBotGridByBot = async (req, res) => {
         })
 
         profitResponse = await DBase.read(`${DBPrefix}bot_fgrid`, queryProfit);
-        response.profit = profitResponse.records[0].profit
+        if (profitResponse.records.length > 0) {
+            response.profit = profitResponse.records[0].profit
+        }
 
         return res.status(200).json(response)
     } catch (error) {

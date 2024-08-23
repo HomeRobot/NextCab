@@ -482,8 +482,8 @@ app.get('/fbotgrid', helper.verifyToken, async (req, res) => {
     }
 })
 
-app.get('/fbotgrid-by-bot/:id', helper.verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /fbotgrid-by-bot: с параметрами: ', req.params);
+app.get('/botgrid-by-fbot/:id', helper.verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /botgrid-by-fbot: с параметрами: ', req.params);
     if (helper.checkPermissionsByUid(req.userId, 'getList', 'fbotgrid')) {
         return await fbotgrid.getFBotGridByBot(req, res)
     } else {
@@ -491,8 +491,8 @@ app.get('/fbotgrid-by-bot/:id', helper.verifyToken, async (req, res) => {
     }
 })
 
-app.get('/fbotgrid-by-pair/:id', helper.verifyToken, async (req, res) => {
-    console.log('Вызван GET-метод. Запрос /fbotgrid-by-pair: с параметрами: ', req.params);
+app.get('/botgrid-by-fpair/:id', helper.verifyToken, async (req, res) => {
+    console.log('Вызван GET-метод. Запрос /botgrid-by-fpair: с параметрами: ', req.params);
     if (helper.checkPermissionsByUid(req.userId, 'getList', 'fbotgrid')) {
         return await fbotgrid.getFBotGridByPair(req, res)
     } else {

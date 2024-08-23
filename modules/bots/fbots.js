@@ -8,7 +8,7 @@ const createFBot = async (req, res) => {
   crtQuery.created = helper.getDateTimeNow()
   const crtBotQuery = JSON.stringify({
     'queryFields': JSON.stringify(crtQuery),
-    'requiredFields': ['title', 'exchange', 'client_id', 'state'],
+    'requiredFields': ['title', 'exchange', 'state'],
     'uniqueFields': ['title']
   })
 
