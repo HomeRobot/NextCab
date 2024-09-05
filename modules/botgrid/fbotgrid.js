@@ -71,7 +71,7 @@ const getFBotGridByPair = async (req, res) => {
     })
 
     inTradesResponse = await DBase.read(`${DBPrefix}bot_fgrid`, queryInOrders);
-    response.in_orders = inTradesResponse.records[0].inTrades
+    response.in_orders = inTradesResponse.records[0] ? inTradesResponse.records[0].inTrades : 0
 
     const queryPurchases = JSON.stringify({
         filter: {
@@ -84,7 +84,7 @@ const getFBotGridByPair = async (req, res) => {
     })
 
     purchasesResponse = await DBase.read(`${DBPrefix}bot_fgrid`, queryPurchases);
-    response.purchases = purchasesResponse.records[0].purchases
+    response.purchases = purchasesResponse.records[0] ? purchasesResponse.records[0].purchases : 0
 
     const querySales = JSON.stringify({
         filter: {
@@ -97,7 +97,7 @@ const getFBotGridByPair = async (req, res) => {
     })
 
     salesResponse = await DBase.read(`${DBPrefix}bot_fgrid`, querySales);
-    response.sales = salesResponse.records[0].sales
+    response.sales = salesResponse.records[0] ? salesResponse.records[0].sales : 0
 
     return res.status(200).json(response)
 }

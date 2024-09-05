@@ -163,9 +163,9 @@ const getFPairs = async (req, res) => {
             id: record.id,
             exchange_id: exchangeResponse.records[0].id,
             exchange_title: exchangeResponse.records[0].title,
-            ordersOpened: ordersOpenedResponse.records[0].ordersOpened,
-            inTrades: inTradesResponse.records[0].inTrades,
-            profit: profitResponse.records[0].profit
+            ordersOpened: ordersOpenedResponse.records[0] ? ordersOpenedResponse.records[0].ordersOpened : 0,
+            inTrades: inTradesResponse.records[0] ? inTradesResponse.records[0].inTrades : 0,
+            profit: profitResponse.records[0] ? profitResponse.records[0].profit : 0
         };
     });
 

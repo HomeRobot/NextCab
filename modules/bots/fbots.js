@@ -40,9 +40,10 @@ const getFBotById = async (req, res) => {
     } else {
       record.api_ready = 0
     }
+    return res.status(200).json(record)
+  } else {
+    return res.status(404).json({ error: 'Data error or fbot not found' })
   }
-
-  return res.status(200).json(record)
 }
 
 const getFBots = async (req, res) => {
