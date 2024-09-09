@@ -40,6 +40,39 @@ const getFBotById = async (req, res) => {
     } else {
       record.api_ready = 0
     }
+
+    if ('json_1' in record) {
+      const json_1_prefix = 'json_1_'
+      let json_1 = JSON.parse(record.json_1),
+        json_1_to_record = {},
+        json_1_fields_to_record = {},
+        parsedJson_1_record = {}
+
+      Object.keys(json_1).forEach(key => {
+        if (key !== 'fields') {
+          const newKey = `${json_1_prefix}${key}`
+          json_1_to_record[newKey] = json_1[key]
+        }
+
+        if (key === 'fields') {
+          json_1_fields_to_record = json_1[key].reduce((accumulator, currentField, index) => {
+            Object.keys(currentField).forEach(key => {
+              const newKey = `${json_1_prefix}fields_${index + 1}_${key}`
+              accumulator[newKey] = currentField[key]
+            })
+            return accumulator
+          }, {})
+
+          delete json_1[key]
+          json_1_to_record = { ...json_1_to_record, ...json_1_fields_to_record }
+        }
+      })
+
+      delete record.json_1
+      parsedJson_1_record = { ...record, ...json_1_to_record }
+
+      return res.status(200).json(parsedJson_1_record)
+    }
     return res.status(200).json(record)
   } else {
     return res.status(404).json({ error: 'Data error or fbot not found' })
@@ -83,9 +116,11 @@ const updateFBotById = async (req, res) => {
     botId = parseInt(req.params.id),
     botState = updQuery.state !== undefined ? parseInt(updQuery.state) : false,
     isStrategy = updQuery.is_strategy,
+    json_1_prefix = 'json_1_',
     useStrategy = updQuery.use_strategy
   let botUpdstatus = true,
     botPairsUpdStatus = true,
+    fieldsToJson1 = {},
     generalUpdStatus = true,
     redis_publish = false,
     redis_targetBotState = '',
@@ -108,6 +143,13 @@ const updateFBotById = async (req, res) => {
     botToUpd = checkBotResponse.records[0]
 
   if (botToUpd) {
+    Object.keys(updQuery).forEach(key => {
+      if (key.includes(json_1_prefix)) {
+        fieldsToJson1[key] = updQuery[key]
+        delete updQuery[key]
+      }
+    })
+
     if (botState === false) {
       const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
 
