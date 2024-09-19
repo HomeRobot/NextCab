@@ -334,9 +334,9 @@ class Database {
 
       const response = await this.database.query(queryString, queryParams)
 
-      /* console.log('update response: ', response)
-      console.log('update serverStatus: ', response[0].serverStatus)
-      console.log('update warningStatus: ', response[0].warningStatus) */
+      // console.log('update response: ', response)
+      // console.log('update serverStatus: ', response[0].serverStatus)
+      // console.log('update warningStatus: ', response[0].warningStatus)
 
       let status = true
       if (response[0].serverStatus !== 2 && response[0].warningStatus !== 0) {

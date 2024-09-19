@@ -95,6 +95,22 @@ const getDateTimeNow = () => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
+const getIndicatorById = async (indId) => {
+  const indicatorQuery = JSON.stringify({
+    filter: {
+      'id': indId
+    }
+  })
+
+  const indicatorResponse = await DBase.read(`indicators`, indicatorQuery)
+
+  if (indicatorResponse.records.length === 0) {
+    return null
+  } else {
+    return indicatorResponse['records'][0]
+  }
+}
+
 const setPauseStartEnd = async (entity, entityId, targetState, useFEntity) => {
   let fEntity = ''
   if (useFEntity) {
@@ -164,31 +180,31 @@ const verifyToken = (req, res, next) => {
   let token = req.headers['authorization'];
 
   if (!token) {
-      console.log('No token provided')
-      return res.status(401).json({ error: 'No token provided' });
+    console.log('No token provided')
+    return res.status(401).json({ error: 'No token provided' });
   }
 
   jwt.verify(token, config.secretKey, (err, decoded) => {
-      if (err) {
-          console.log('Token verification failed: ', err)
-          console.log('err: ', err)
-          console.log('decoded: ', decoded)
-          const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
-          if (err.name === 'TokenExpiredError' && decoded.exp < currentTime) {
-              console.log('Token expired')
-              return res.status(401).json({ error: 'Token expired' });
-          }
-          return res.status(500).json({ error: err.name });
+    if (err) {
+      console.log('Token verification failed: ', err)
+      console.log('err: ', err)
+      console.log('decoded: ', decoded)
+      const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+      if (err.name === 'TokenExpiredError' && decoded.exp < currentTime) {
+        console.log('Token expired')
+        return res.status(401).json({ error: 'Token expired' });
       }
+      return res.status(500).json({ error: err.name });
+    }
 
-      /* const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
-      if (decoded.exp < currentTime) {
-          return res.status(401).json({ error: 'Token expired' });
-      } */
+    /* const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+    if (decoded.exp < currentTime) {
+        return res.status(401).json({ error: 'Token expired' });
+    } */
 
-      // Decoded data from the token containing the user ID
-      req.userId = decoded.userId;
-      next();
+    // Decoded data from the token containing the user ID
+    req.userId = decoded.userId;
+    next();
   });
 }
 
@@ -199,6 +215,7 @@ module.exports = {
   formatDatesInObject,
   getBotParamsNamesEqualPairParamsNames,
   getDateTimeNow,
+  getIndicatorById,
   setPauseStartEnd,
   verifyJoomlaPassword,
   verifyToken,

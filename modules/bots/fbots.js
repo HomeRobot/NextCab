@@ -41,38 +41,59 @@ const getFBotById = async (req, res) => {
       record.api_ready = 0
     }
 
-    if ('json_1' in record) {
-      const json_1_prefix = 'json_1_'
-      let json_1 = JSON.parse(record.json_1),
-        json_1_to_record = {},
-        json_1_fields_to_record = {},
-        parsedJson_1_record = {}
+    record.checked_out_time = '0000-00-00 00:00:00'
 
-      Object.keys(json_1).forEach(key => {
-        if (key !== 'fields') {
-          const newKey = `${json_1_prefix}${key}`
-          json_1_to_record[newKey] = json_1[key]
+    const botId = record.id,
+      indicatorsQuery = JSON.stringify({
+        filter: {
+          'fbot_id': botId
+        },
+      }),
+      indicatorsResponse = await DBase.read(`indicators_data`, indicatorsQuery),
+      indicatorsDataArr = indicatorsResponse.records
+    let parcedIndicatorsRecord = {}
+
+    if (indicatorsDataArr.length > 0) {
+      for (const ind of indicatorsDataArr) {
+        const indicator = await helper.getIndicatorById(indicatorsDataArr.indicator_id)
+        if (indicator) {
+          ind.indicator_name = indicator.name
+
+          try {
+            const fieldsData = JSON.parse(ind.json_1),
+              indicatorSettings = JSON.parse(indicator.json_1),
+              indicatorFieldsAttrs = indicatorSettings.fields,
+              fieldsDataResult = indicatorFieldsAttrs.map((field) => {
+                const fieldName = field.name,
+                  fieldValue = fieldsData.find(obj => fieldName in obj)[fieldName],
+                  fieldFullData = { ...field, value: fieldValue}
+
+                fieldFullData[fieldName] = fieldValue
+                return fieldFullData;
+              });
+
+            ind.fields = fieldsDataResult
+          } catch (error) {
+            try {
+              const indicatorSettings = JSON.parse(indicator.json_1)
+              ind.fields = indicatorSettings.fields
+            } catch (error) {
+              ind.fields = []
+            }
+          }
+          delete ind.json_1
+        } else {
+          return res.status(500).json({ error: 'Indicator not found' })
         }
-
-        if (key === 'fields') {
-          json_1_fields_to_record = json_1[key].reduce((accumulator, currentField, index) => {
-            Object.keys(currentField).forEach(key => {
-              const newKey = `${json_1_prefix}fields_${index + 1}_${key}`
-              accumulator[newKey] = currentField[key]
-            })
-            return accumulator
-          }, {})
-
-          delete json_1[key]
-          json_1_to_record = { ...json_1_to_record, ...json_1_fields_to_record }
-        }
-      })
-
-      delete record.json_1
-      parsedJson_1_record = { ...record, ...json_1_to_record }
-
-      return res.status(200).json(parsedJson_1_record)
+      }
     }
+
+
+    if (indicatorsDataArr.length > 0) {
+      parcedIndicatorsRecord = { ...record, indicators: indicatorsDataArr }
+      return res.status(200).json(parcedIndicatorsRecord)
+    }
+
     return res.status(200).json(record)
   } else {
     return res.status(404).json({ error: 'Data error or fbot not found' })
@@ -115,25 +136,31 @@ const updateFBotById = async (req, res) => {
   const updQuery = { ...req.body },
     botId = parseInt(req.params.id),
     botState = updQuery.state !== undefined ? parseInt(updQuery.state) : false,
+    indicators = updQuery.indicators,
     isStrategy = updQuery.is_strategy,
-    json_1_prefix = 'json_1_',
     useStrategy = updQuery.use_strategy
   let botUpdstatus = true,
     botPairsUpdStatus = true,
-    fieldsToJson1 = {},
     generalUpdStatus = true,
     redis_publish = false,
     redis_targetBotState = '',
     redis_status = ''
 
+  updQuery.checked_out_time = '0000-00-00 00:00:00'
   updQuery.id = botId
   delete updQuery.api_ready
-  updQuery.checked_out_time = '0000-00-00 00:00:00'
+  delete updQuery.created
+  delete updQuery.created_by
+  delete updQuery.indicators
 
   if (isStrategy) {
     delete updQuery.use_strategy
     updQuery.is_strategy = 1
     updQuery.strategy = null
+  }
+
+  if (req.body.whitelist.length == 0) {
+    updQuery.whitelist = null
   }
 
   const checkBotQuery = JSON.stringify({
@@ -142,13 +169,29 @@ const updateFBotById = async (req, res) => {
     checkBotResponse = await DBase.read(`${DBPrefix}bot_fbot`, checkBotQuery),
     botToUpd = checkBotResponse.records[0]
 
+  const checkBotPairsQuery = JSON.stringify({
+    filter: { bot_id: botId }
+  }),
+    checkBotPairsResponse = await DBase.read(`${DBPrefix}bot_fpair`, checkBotPairsQuery),
+    botPairsQty = checkBotPairsResponse.records.length
+
   if (botToUpd) {
-    Object.keys(updQuery).forEach(key => {
-      if (key.includes(json_1_prefix)) {
-        fieldsToJson1[key] = updQuery[key]
-        delete updQuery[key]
+    if (indicators && indicators.length > 0) {
+      for (const ind of indicators) {
+        console.log('ind: ', ind)
+
+        const indicatorQuery = JSON.stringify({
+            filter: { indicator_id: ind.indicator_id, fbot_id: botId },
+            fields: {
+              enabled: ind.enabled ? 1 : 0,
+              json_1: JSON.stringify(ind.fields)
+             }
+          }),
+          indicatorResponse = await DBase.update("indicators_data", indicatorQuery)
+
+        console.log('indicatorResponse: ', indicatorResponse)
       }
-    })
+    }
 
     if (botState === false) {
       const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
@@ -180,31 +223,33 @@ const updateFBotById = async (req, res) => {
         }
       }
 
-      const botChangedData = {};
-      for (const key in updQuery) {
-        if (updQuery.hasOwnProperty(key) && botParamsNamesEqualPairsParamsNames.hasOwnProperty(key)) {
-          if (updQuery[key] !== botToUpd[key]) {
-            botChangedData[key] = updQuery[key];
+      if (botPairsQty > 0) {
+        const botChangedData = {};
+        for (const key in updQuery) {
+          if (updQuery.hasOwnProperty(key) && botParamsNamesEqualPairsParamsNames.hasOwnProperty(key)) {
+            if (updQuery[key] !== botToUpd[key]) {
+              botChangedData[key] = updQuery[key];
+            }
           }
         }
-      }
 
-      if (Object.keys(botChangedData).length > 0) {
-        const botPairFieldsToUpd = {}
-        for (const key in botChangedData) {
-          if (botChangedData.hasOwnProperty(key)) {
-            const mappedKey = botParamsNamesEqualPairsParamsNames[key];
-            botPairFieldsToUpd[mappedKey] = botChangedData[key];
+        if (Object.keys(botChangedData).length > 0) {
+          const botPairFieldsToUpd = {}
+          for (const key in botChangedData) {
+            if (botChangedData.hasOwnProperty(key)) {
+              const mappedKey = botParamsNamesEqualPairsParamsNames[key];
+              botPairFieldsToUpd[mappedKey] = botChangedData[key];
+            }
           }
-        }
-        const botPairsQuery = JSON.stringify({
-          'fields': helper.formatDatesInObject(botPairFieldsToUpd, 'YYYY-MM-DD HH:mm:ss'),
-          filter: { bot_id: botId }
-        })
-        const botPairsUpdResponse = await DBase.update(`${DBPrefix}bot_fpair`, botPairsQuery)
+          const botPairsQuery = JSON.stringify({
+            'fields': helper.formatDatesInObject(botPairFieldsToUpd, 'YYYY-MM-DD HH:mm:ss'),
+            filter: { bot_id: botId }
+          })
+          const botPairsUpdResponse = await DBase.update(`${DBPrefix}bot_fpair`, botPairsQuery)
 
-        if (botPairsUpdResponse.status !== true) {
-          botPairsUpdStatus = false
+          if (botPairsUpdResponse.status !== true) {
+            botPairsUpdStatus = false
+          }
         }
       }
     } else {
