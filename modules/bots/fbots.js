@@ -63,21 +63,27 @@ const getFBotById = async (req, res) => {
             const fieldsData = JSON.parse(ind.json_1),
               indicatorSettings = JSON.parse(indicator.json_1),
               indicatorFieldsAttrs = indicatorSettings.fields,
-              fieldsDataResult = indicatorFieldsAttrs.map((field) => {
-                const fieldName = field.name,
-                  fieldValue = fieldsData.find(obj => fieldName in obj)[fieldName],
-                  fieldFullData = { ...field, value: fieldValue}
+              fieldsDataResult = []
 
-                fieldFullData[fieldName] = fieldValue
-                return fieldFullData;
-              });
+            indicatorFieldsAttrs.forEach((field) => {
+              const fieldKey = fieldsData.find(obj => obj[field.name])
+              if (fieldKey) {
+                const fieldValue = fieldKey[field.name],
+                  fieldFullData = { ...field, value: fieldValue }
+
+                fieldFullData[field.name] = fieldValue
+                fieldsDataResult.push(fieldFullData)
+              }
+            });
 
             ind.fields = fieldsDataResult
           } catch (error) {
+            console.log("Parse error in json indicator data.", error)
             try {
               const indicatorSettings = JSON.parse(indicator.json_1)
               ind.fields = indicatorSettings.fields
             } catch (error) {
+              console.log("Parse error in json indicator settings.", error)
               ind.fields = []
             }
           }
@@ -181,12 +187,12 @@ const updateFBotById = async (req, res) => {
         console.log('ind: ', ind)
 
         const indicatorQuery = JSON.stringify({
-            filter: { indicator_id: ind.indicator_id, fbot_id: botId },
-            fields: {
-              enabled: ind.enabled ? 1 : 0,
-              json_1: JSON.stringify(ind.fields)
-             }
-          }),
+          filter: { indicator_id: ind.indicator_id, fbot_id: botId },
+          fields: {
+            enabled: ind.enabled ? 1 : 0,
+            json_1: JSON.stringify(ind.fields)
+          }
+        }),
           indicatorResponse = await DBase.update("indicators_data", indicatorQuery)
 
         console.log('indicatorResponse: ', indicatorResponse)
