@@ -354,12 +354,77 @@ class Database {
     }
   }
 
-  async delete(table, id) {
+  async delete(table, query) {
     try {
-      // Код для удаления записи
-      return `Record with id ${id} deleted successfully`
+      const { filter: filterData } = JSON.parse(query),
+        countRows = await this.database.query(`SELECT COUNT(id) as total_rows FROM ${table}`),
+        totalRows = countRows[0][0].total_rows;
+
+      if (totalRows === 0) {
+        const errorData = {
+          'errorType': 'noDataToDelete'
+        };
+        throw new Error(JSON.stringify(errorData));
+      }
+
+      if (filterData === undefined || filterData === null) {
+        const errorData = {
+          'errorType': 'noFilterInQuery'
+        };
+        throw new Error(JSON.stringify(errorData));
+      }
+
+      if (typeof filterData == 'string') {
+        filterData = JSON.parse(filterData);
+      }
+
+      let queryString = '',
+        queryParams = [];
+
+      if (typeof filterData == 'object' && Object.keys(filterData).length > 0) {
+        const whereClauses = [];
+
+        for (const key in filterData) {
+          const filterKey = key,
+            filterValue = filterData[key];
+
+          if (filterKey.includes(`_like`)) {
+            const realKey = filterKey.replace('_like', '');
+            whereClauses.push(`${realKey} LIKE ?`);
+          } else {
+            if (Array.isArray(filterValue)) {
+              const placeholders = Array.from({ length: filterValue.length }, () => '?');
+              whereClauses.push(`${key} IN (${placeholders.join(', ')})`);
+            } else {
+              if (filterValue === null) {
+                whereClauses.push(`${key} IS NULL`);
+              } else {
+                whereClauses.push(`${key} = ?`);
+                queryParams.push(filterValue);
+              }
+            }
+          }
+        }
+        queryString += `DELETE FROM ${table} WHERE ${whereClauses.join(' AND ')}`;
+      } else {
+        queryString += `DELETE FROM ${table} WHERE id = ?`;
+        queryParams = [filterData.id];
+      }
+
+      const response = await this.database.query(queryString, queryParams);
+
+      let status = true;
+      if (response[0].affectedRows === 0) {
+        status = false;
+      }
+      const returnObj = {
+        'procedure': 'delete',
+        'status': status
+      };
+      return returnObj;
     } catch (error) {
-      console.error('Error deleting record:', error)
+      console.error('Error deleting record:', error);
+      return error;
     }
   }
 }

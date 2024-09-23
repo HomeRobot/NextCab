@@ -44,18 +44,14 @@ const getFBotById = async (req, res) => {
     record.checked_out_time = '0000-00-00 00:00:00'
 
     const botId = record.id,
-      indicatorsQuery = JSON.stringify({
-        filter: {
-          'fbot_id': botId
-        },
-      }),
-      indicatorsResponse = await DBase.read(`indicators_data`, indicatorsQuery),
-      indicatorsDataArr = indicatorsResponse.records
+      indicatorsData = await helper.getIndicatorsDataByBotId(botId)
     let parcedIndicatorsRecord = {}
 
-    if (indicatorsDataArr.length > 0) {
-      for (const ind of indicatorsDataArr) {
-        const indicator = await helper.getIndicatorById(indicatorsDataArr.indicator_id)
+    console.log('read indicatorsData: ', indicatorsData)
+
+    if (indicatorsData.length > 0) {
+      for (const ind of indicatorsData) {
+        const indicator = await helper.getIndicatorById(ind.indicator_id)
         if (indicator) {
           ind.indicator_name = indicator.name
 
@@ -95,8 +91,8 @@ const getFBotById = async (req, res) => {
     }
 
 
-    if (indicatorsDataArr.length > 0) {
-      parcedIndicatorsRecord = { ...record, indicators: indicatorsDataArr }
+    if (indicatorsData.length > 0) {
+      parcedIndicatorsRecord = { ...record, indicators: indicatorsData }
       return res.status(200).json(parcedIndicatorsRecord)
     }
 
@@ -184,8 +180,6 @@ const updateFBotById = async (req, res) => {
   if (botToUpd) {
     if (indicators && indicators.length > 0) {
       for (const ind of indicators) {
-        console.log('ind: ', ind)
-
         const indicatorQuery = JSON.stringify({
           filter: { indicator_id: ind.indicator_id, fbot_id: botId },
           fields: {
@@ -194,8 +188,6 @@ const updateFBotById = async (req, res) => {
           }
         }),
           indicatorResponse = await DBase.update("indicators_data", indicatorQuery)
-
-        console.log('indicatorResponse: ', indicatorResponse)
       }
     }
 
@@ -213,6 +205,46 @@ const updateFBotById = async (req, res) => {
               strategyOrigin = strategyOriginResponse.records[0]
 
             if (strategyOrigin) {
+              console.log('strategyOrigin: ', strategyOrigin)
+              const originIndicatorsData = await helper.getIndicatorsDataByBotId(strategyOrigin.id)
+
+              if (originIndicatorsData.length > 0) {
+                const indicatorsData = await helper.getIndicatorsDataByBotId(botId)
+
+                console.log('indicatorsData: ', indicatorsData)
+
+                if (indicatorsData.length > 0) {
+                  for (const ind of indicatorsData) {
+                    console.log('ind: ', ind)
+                    const dltIndQuerry = JSON.stringify({
+                      'filter': {
+                        'id': ind.id
+                      },
+                    })
+
+                    const dltIndResponse = await DBase.delete('indicators_data', dltIndQuerry)
+                    console.log('dltIndResponse: ', dltIndResponse)
+                  }
+                }
+
+                for (const originInd of originIndicatorsData) {
+                  const crtIndQuerry = JSON.stringify({
+                    'queryFields': {
+                      'indicator_id': originInd.indicator_id,
+                      'fbot_id': botId,
+                      'enabled': originInd.enabled,
+                      'json_1': originInd.json_1
+
+                    },
+                    'requiredFields': ['indicator_id', 'fbot_id', 'enabled', 'json_1'],
+                    'uniqueFields': []
+                  })
+
+                  const crtIndResponse = await DBase.create('indicators_data', crtIndQuerry)
+                  console.log('crtIndResponse: ', crtIndResponse)
+                }
+              }
+
               for (const key in botParamsNamesEqualPairsParamsNames) {
                 if (botParamsNamesEqualPairsParamsNames.hasOwnProperty(key) && strategyOrigin.hasOwnProperty(key)) {
                   updQuery[key] = strategyOrigin[key];

@@ -101,14 +101,24 @@ const getIndicatorById = async (indId) => {
       'id': indId
     }
   })
-
   const indicatorResponse = await DBase.read(`indicators`, indicatorQuery)
-
   if (indicatorResponse.records.length === 0) {
     return null
   } else {
     return indicatorResponse['records'][0]
   }
+}
+
+const getIndicatorsDataByBotId = async (botId) => {
+  indicatorsQuery = JSON.stringify({
+    filter: {
+      'fbot_id': botId
+    },
+  }),
+  indicatorsResponse = await DBase.read(`indicators_data`, indicatorsQuery),
+  indicatorsDataArr = indicatorsResponse.records
+
+  return indicatorsDataArr
 }
 
 const setPauseStartEnd = async (entity, entityId, targetState, useFEntity) => {
@@ -216,6 +226,7 @@ module.exports = {
   getBotParamsNamesEqualPairParamsNames,
   getDateTimeNow,
   getIndicatorById,
+  getIndicatorsDataByBotId,
   setPauseStartEnd,
   verifyJoomlaPassword,
   verifyToken,
