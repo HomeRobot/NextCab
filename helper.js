@@ -95,6 +95,19 @@ const getDateTimeNow = () => {
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
+function getChangedFields(obj, newObj, excludeKeys = []) {
+  const changedFields = {};
+  const newObjCleared = Object.keys(newObj).filter(key => !excludeKeys.includes(key)).reduce((acc, key) => ({ ...acc, [key]: newObj[key] }), {});
+
+  Object.keys(newObjCleared).forEach((key) => {
+    if (newObjCleared[key] !== obj[key]) {
+      changedFields[key] = newObjCleared[key];
+    }
+  });
+
+  return changedFields;
+}
+
 const getIndicatorById = async (indId) => {
   const indicatorQuery = JSON.stringify({
     filter: {
@@ -115,8 +128,8 @@ const getIndicatorsDataByBotId = async (botId) => {
       'fbot_id': botId
     },
   }),
-  indicatorsResponse = await DBase.read(`indicators_data`, indicatorsQuery),
-  indicatorsDataArr = indicatorsResponse.records
+    indicatorsResponse = await DBase.read(`indicators_data`, indicatorsQuery),
+    indicatorsDataArr = indicatorsResponse.records
 
   return indicatorsDataArr
 }
@@ -224,6 +237,7 @@ module.exports = {
   checkPermissionsByUid,
   formatDatesInObject,
   getBotParamsNamesEqualPairParamsNames,
+  getChangedFields,
   getDateTimeNow,
   getIndicatorById,
   getIndicatorsDataByBotId,

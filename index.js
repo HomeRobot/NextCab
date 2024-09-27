@@ -519,7 +519,7 @@ app.get('/orders/', helper.verifyToken, async (req, res) => {
 // FORDERS ENDPOINTS
 app.get('/forders/', helper.verifyToken, async (req, res) => {
     console.log('Вызван GET-метод. Запрос /forders: ', req.query);
-    if (helper.checkPermissionsByUid(req.userId, 'getList', 'botgrid')) {
+    if (helper.checkPermissionsByUid(req.userId, 'getList', 'botfgrid')) {
         return await forder.getFOrders(req, res)
     } else {
         return res.status(403).json({ error: 'No permissions' });

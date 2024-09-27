@@ -47,8 +47,6 @@ const getFBotById = async (req, res) => {
       indicatorsData = await helper.getIndicatorsDataByBotId(botId)
     let parcedIndicatorsRecord = {}
 
-    console.log('read indicatorsData: ', indicatorsData)
-
     if (indicatorsData.length > 0) {
       for (const ind of indicatorsData) {
         const indicator = await helper.getIndicatorById(ind.indicator_id)
@@ -148,23 +146,6 @@ const updateFBotById = async (req, res) => {
     redis_targetBotState = '',
     redis_status = ''
 
-  updQuery.checked_out_time = '0000-00-00 00:00:00'
-  updQuery.id = botId
-  delete updQuery.api_ready
-  delete updQuery.created
-  delete updQuery.created_by
-  delete updQuery.indicators
-
-  if (isStrategy) {
-    delete updQuery.use_strategy
-    updQuery.is_strategy = 1
-    updQuery.strategy = null
-  }
-
-  if (req.body.whitelist.length == 0) {
-    updQuery.whitelist = null
-  }
-
   const checkBotQuery = JSON.stringify({
     filter: { id: botId }
   }),
@@ -178,6 +159,33 @@ const updateFBotById = async (req, res) => {
     botPairsQty = checkBotPairsResponse.records.length
 
   if (botToUpd) {
+    // Check if bot is strategy or not. If yes - delete use_strategy as it is synthetic afield
+    if (isStrategy) {
+      delete updQuery.use_strategy
+      updQuery.is_strategy = 1
+      updQuery.strategy = null
+    }
+
+    // Check if set whitelist data
+    if (req.body.whitelist.length == 0) {
+      updQuery.whitelist = null
+    }
+
+    const updDeltaExcludeFields = ['ap_ready', 'checked_out_time', 'created', 'created_by', 'indicators', 'use_strategy']
+    const updDeltaObj = helper.getChangedFields(botToUpd, updQuery, updDeltaExcludeFields)
+
+    if (Object.keys(updDeltaObj).length > 0) {
+      redis_publish = true
+    }
+
+    updQuery.checked_out_time = '0000-00-00 00:00:00'
+    updQuery.id = botId
+    delete updQuery.api_ready
+    delete updQuery.created
+    delete updQuery.created_by
+    delete updQuery.indicators
+
+    // Indicators update
     if (indicators && indicators.length > 0) {
       for (const ind of indicators) {
         const indicatorQuery = JSON.stringify({
@@ -191,6 +199,7 @@ const updateFBotById = async (req, res) => {
       }
     }
 
+    // Bot update if state not changed
     if (botState === false) {
       const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
 
@@ -291,6 +300,7 @@ const updateFBotById = async (req, res) => {
         }
       }
     } else {
+      // Bot update if state change
       if (botState === 1 || botState === 2) {
         const setPauseStartEndResponse = await helper.setPauseStartEnd('bot', botId, botState, true)
         if ((setPauseStartEndResponse.result == "success") || (setPauseStartEndResponse.procedure == "update" && setPauseStartEndResponse.status)) {
@@ -329,12 +339,18 @@ const updateFBotById = async (req, res) => {
         'id': parseInt(botId),
         'command': redis_targetBotState,
       }
+
+      if (Object.keys(updDeltaObj).length > 0) {
+        redisMessage.newData = JSON.stringify(updDeltaObj)
+      }
+
       redis.publish('main', JSON.stringify(redisMessage))
       redisSub.on('message', function (channel, message) {
         if (channel === 'main') {
           const redisResponse = JSON.parse(message)
           if (redisResponse.id === botId) {
             redis_status = 'ready'
+            // console.log('Redis response: ', redisResponse)
           }
         }
       });
