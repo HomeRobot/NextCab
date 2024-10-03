@@ -146,31 +146,14 @@ const updateFBotById = async (req, res) => {
     redis_targetBotState = '',
     redis_status = ''
 
+  // Chech if bot exists
   const checkBotQuery = JSON.stringify({
     filter: { id: botId }
   }),
     checkBotResponse = await DBase.read(`${DBPrefix}bot_fbot`, checkBotQuery),
     botToUpd = checkBotResponse.records[0]
 
-  const checkBotPairsQuery = JSON.stringify({
-    filter: { bot_id: botId }
-  }),
-    checkBotPairsResponse = await DBase.read(`${DBPrefix}bot_fpair`, checkBotPairsQuery),
-    botPairsQty = checkBotPairsResponse.records.length
-
   if (botToUpd) {
-    // Check if bot is strategy or not. If yes - delete use_strategy as it is synthetic afield
-    if (isStrategy) {
-      delete updQuery.use_strategy
-      updQuery.is_strategy = 1
-      updQuery.strategy = null
-    }
-
-    // Check if set whitelist data
-    if (req.body.whitelist.length == 0) {
-      updQuery.whitelist = null
-    }
-
     const updDeltaExcludeFields = ['ap_ready', 'checked_out_time', 'created', 'created_by', 'indicators', 'use_strategy']
     const updDeltaObj = helper.getChangedFields(botToUpd, updQuery, updDeltaExcludeFields)
 
@@ -185,22 +168,42 @@ const updateFBotById = async (req, res) => {
     delete updQuery.created_by
     delete updQuery.indicators
 
-    // Indicators update
-    if (indicators && indicators.length > 0) {
-      for (const ind of indicators) {
-        const indicatorQuery = JSON.stringify({
-          filter: { indicator_id: ind.indicator_id, fbot_id: botId },
-          fields: {
-            enabled: ind.enabled ? 1 : 0,
-            json_1: JSON.stringify(ind.fields)
-          }
-        }),
-          indicatorResponse = await DBase.update("indicators_data", indicatorQuery)
-      }
-    }
-
     // Bot update if state not changed
     if (botState === false) {
+      // Check bot pairs
+      const checkBotPairsQuery = JSON.stringify({
+        filter: { bot_id: botId }
+      }),
+        checkBotPairsResponse = await DBase.read(`${DBPrefix}bot_fpair`, checkBotPairsQuery),
+        botPairsQty = checkBotPairsResponse.records.length
+
+      // Check if bot is strategy or not. If yes - delete use_strategy as it is synthetic afield
+      if (isStrategy) {
+        delete updQuery.use_strategy
+        updQuery.is_strategy = 1
+        updQuery.strategy = null
+      }
+
+      // Indicators update
+      if (indicators && indicators.length > 0) {
+        for (const ind of indicators) {
+          const indicatorQuery = JSON.stringify({
+            filter: { indicator_id: ind.indicator_id, fbot_id: botId },
+            fields: {
+              enabled: ind.enabled ? 1 : 0,
+              json_1: JSON.stringify(ind.fields)
+            }
+          }),
+            indicatorResponse = await DBase.update("indicators_data", indicatorQuery)
+        }
+      }
+
+      // Check if set whitelist data
+      if (req.body.whitelist.length == 0) {
+        updQuery.whitelist = null
+      }
+
+
       const botParamsNamesEqualPairsParamsNames = helper.getBotParamsNamesEqualPairParamsNames()
 
       if (isStrategy == false) {
@@ -350,7 +353,6 @@ const updateFBotById = async (req, res) => {
           const redisResponse = JSON.parse(message)
           if (redisResponse.id === botId) {
             redis_status = 'ready'
-            // console.log('Redis response: ', redisResponse)
           }
         }
       });
